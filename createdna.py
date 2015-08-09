@@ -4,6 +4,7 @@ import os.path as op
 from collections import namedtuple
 import matrix
 import numpy as np
+from parsebonds import parsePDBConnect, writePDBConnect
 """
 # strands axii assumed in the X direction
 
@@ -55,12 +56,18 @@ BASE_LUT[b't'[0]] = 3
 
 def loadBasePDBs():
     base_atom_groups = []
+    base_bond_groups = []
     for fn in dna_pdb_files:
-        ag = parsePDB(op.join(DATA_DIR, fn))
+        the_file = op.join(DATA_DIR, fn)
+        ag = parsePDB(the_file)
+        print(ag.getDataLabels())
         base_atom_groups.append(ag)
-    return base_atom_groups
 
-base_atom_groups = loadBasePDBs()
+        bg = parsePDBConnect(the_file)
+        base_bond_groups.append(bg)
+    return base_atom_groups, base_bond_groups
+
+base_atom_groups, base_bond_groups = loadBasePDBs()
 
 def createStrand(seq, origin, name="strand", is_fwd=False, theta_offset=0.0):
     """
@@ -69,6 +76,7 @@ def createStrand(seq, origin, name="strand", is_fwd=False, theta_offset=0.0):
     if isinstance(seq, str):
         seq = seq.encode('utf-8')
     ag_list = []
+    bg_list = []
     for i, base in enumerate(seq):
         idx = BASE_LUT[base]
         print(chr(base), idx)
@@ -77,17 +85,27 @@ def createStrand(seq, origin, name="strand", is_fwd=False, theta_offset=0.0):
         new_coords = matrix.applyTransform(ag._getCoords(), m) 
         ag.setCoords(new_coords)
         ag_list.append(AGBase(idx, ag))
+        bg = base_bond_groups[idx].copy()
+        bg_list.append(bg)
 
     for x in ag_list:
         print(x)
 
-    # prody.AtomGroup doesn't impplement __radd__ so we can't do sum
+    # prody.AtomGroup doesn't implement __radd__ so we can't do sum
     ag_out = ag_list[0].ag
+    bg_out = base_bond_groups[0]
+
     for i in range(1, len(ag_list)):
         ag_out += ag_list[i].ag
-
+        offset = len(ag_list[i].ag._getCoords())
+        offset_bg_list = [x + offset for x in bg_list[i]]
+        bg_out += offset_bg_list
+    
     ag_out.setTitle(name)
-    writePDB('test_file.pdb', ag_out)
+    out_file = 'test_file.pdb'
+    writePDB(out_file, ag_out)
+
+    writePDBConnect(out_file, bg_out)
     return ag_out
 # end def
 
