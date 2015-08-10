@@ -36,47 +36,41 @@ ATOM     33  H1  DG  A   1       2.143  -0.484   0.598  1.00  0.00           H
 ATOM     34  H21 DG  A   1       2.180   0.188   4.012  1.00  0.00           H  
 ATOM     35  H22 DG  A   1       2.281  -1.036   2.717  1.00  0.00           H  
 ATOM     36 HCAP DG  A   1       1.699   6.361   5.144  1.00  0.00           H  
-CONECT    1    2                                                      
-CONECT    2    1    3                                                 
-CONECT    3    2    5    4    6                                       
-CONECT    3                                                           
-CONECT    4    3                                                      
-CONECT    5    3                                                      
-CONECT    6    3    7                                                 
-CONECT    7    6   26   25    8                                       
-CONECT    7                                                           
-CONECT    8    7    9   10   27                                       
-CONECT    8                                                           
-CONECT    9   13    8                                                 
-CONECT   10   12   31    8   11                                       
-CONECT   10                                                           
-CONECT   11   10   36                                                 
-CONECT   12   29   13   30   10                                       
-CONECT   12                                                           
-CONECT   13   14   12    9   28                                       
-CONECT   13                                                           
-CONECT   14   15   24   13                                            
-CONECT   15   16   32   14                                            
-CONECT   16   17   15                                                 
-CONECT   17   16   18   24                                            
-CONECT   18   19   17   20                                            
-CONECT   19   18                                                      
-CONECT   20   18   33   21                                            
-CONECT   21   20   23   22                                            
-CONECT   22   21   35   34                                            
-CONECT   23   24   21                                                 
-CONECT   24   17   14   23                                            
-CONECT   25    7                                                      
-CONECT   26    7                                                      
-CONECT   27    8                                                      
-CONECT   28   13                                                      
-CONECT   29   12                                                      
-CONECT   30   12                                                      
-CONECT   31   10                                                      
-CONECT   32   15                                                      
-CONECT   33   20                                                      
-CONECT   34   22                                                      
-CONECT   35   22                                                      
-CONECT   36   11                                                      
+CONECT    1    2
+CONECT    2    1    3
+CONECT    3    2    5    4    6
+CONECT    4    3
+CONECT    5    3
+CONECT    6    3    7
+CONECT    7    6   26   25    8
+CONECT    8    7    9   10   27
+CONECT    9   13    8
+CONECT   10   12   31    8   11
+CONECT   11   10   36
+CONECT   12   29   13   30   10
+CONECT   13   14   12    9   28
+CONECT   14   15   24   13
+CONECT   15   16   32   14
+CONECT   16   17   15
+CONECT   17   16   18   24
+CONECT   18   19   17   20
+CONECT   19   18
+CONECT   20   18   33   21
+CONECT   21   20   23   22
+CONECT   22   21   35   34
+CONECT   23   24   21
+CONECT   24   17   14   23
+CONECT   25    7
+CONECT   26    7
+CONECT   27    8
+CONECT   28   13
+CONECT   29   12
+CONECT   30   12
+CONECT   31   10
+CONECT   32   15
+CONECT   33   20
+CONECT   34   22
+CONECT   35   22
+CONECT   36   11
 MASTER        0    0    0    0    0    0    0    0   36    0   36    0
 END

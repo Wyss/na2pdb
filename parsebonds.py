@@ -16,7 +16,7 @@ def parsePDBConnect(fn):
                 bonds_per_atom = [int(x) for x in line[7:].split()]
                 if len(bonds_per_atom) > 1:
                     bonds.append(np.array(bonds_per_atom, dtype=int))
-    # print(bonds)
+    print("num_bond lines:", len(bonds))
     return bonds
 # end def
 

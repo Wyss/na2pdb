@@ -40,11 +40,6 @@ def makeRotationZ(theta):
     m[1,1] = c
     return m
 
-# def createTransform(origin, helical_position, is_forward, bases_per_turn=10.5):
-#     twist_per_segment = 2.*math.pi/bases_per_turn
-#     m_rot = makeRotationZ(twist_per_segment*helical_position)
-#     makeTranslation(origin + [0, 0, helical_position])
-
 def applyTransform(coords, m4):
     """ assume we are applying rows of vectors
     [               
