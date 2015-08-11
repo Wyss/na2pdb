@@ -167,16 +167,27 @@ def createINTAGs(base_atom_groups, base_bonds):
 INT_ATOM_GROUPS, INT_BONDS = createINTAGs(BASE_ATOM_GROUPS, BASE_BONDS)
 
 class AtomicSequence(object):
+    """
+    1. construct all bases
+    2. move bases to correct positions
+    3. Apply twist.
+    """
     def __init__(self, seq, origin, name, bases_per_turn=10.5, theta_offset=0.0):
         self.seq = seq
         self.bases_per_turn = bases_per_turn
         self.theta_offset = theta_offset
         self.atom_group = None
+
+        # list of bonds
         self.bonds = None
+
+        # list of virtual helix positions per bases where the  
+        self.base_idxs = list(range(len(seq))) 
+        # list of index offsets for the atoms in the combined group
         self.start_idxs = [0]
         start_idxs = self.start_idxs
 
-        twist_per_segment = 2.*math.pi/bases_per_turn
+        self.transform_queue = []
 
         if isinstance(seq, str):
             seq = seq.encode('utf-8')
@@ -200,12 +211,6 @@ class AtomicSequence(object):
                 ag = THREE_P_ATOM_GROUPS[idx].copy()
                 bg = THREE_P_BONDS[idx].copy()
 
-            m = matrix.makeTranslation(i*DELTA_X, 0, 0)
-            new_coords = matrix.applyTransform(ag._getCoords(), m)
-            m = matrix.makeRotationX(i*twist_per_segment)
-            new_coords = matrix.applyTransform(new_coords, m)
-
-            ag.setCoords(new_coords)
             ag_list.append(AGBase(idx, ag))
             bond_list.append(bg)
 
@@ -258,22 +263,28 @@ class AtomicSequence(object):
         """
 
         ag_out.setTitle(name)
-
         self.atom_group = ag_out
         self.bonds = bonds_out
+
+
+        self.transformBases(5, 11, 0, -2, 0, False)
+        self.applyTwist()
+        self.applyTransformQueue()
+        self.linearize()
+
     # end def
 
     def transformBases(self, start, end, x, y, z, is_5to3):
         """
         assumes start < end
         start (int): the start index to transform
-        end (int): the end_idx to transform (use -1 for the end)
+        end (int): the end_idx to transform (use -1 for the end) (non-inclusive)
         x (int): unit in bases from 0
         y, z (float): units in multiple of RADIUS from 0,0
         is_5to3 (bool): if the bases will be 5' to 3' in the x direction
             or 3' to 5'
         """
-        old_coords = self.atom_group._getCoords()
+        old_coords = self.atom_group._getCoords()   # points to source array
         start_idxs = self.start_idxs
 
         start_idx = self.start_idxs[start]
@@ -283,23 +294,78 @@ class AtomicSequence(object):
             end_idx = self.start_idxs[end]
 
         if not is_5to3:
-            # 1. Move back to 0, 0, 0
-            m1 = matrix.makeTranslation(-start*DELTA_X, 0, 0)
-            # 2. Flip 180 degrees about Z to change direction
-            m2 = matrix.makeRotationZ(math.pi)
-            m21 = np.dot(m2, m1)
-            # 3. Translate to make the 3p end at 0
-            m3 = matrix.makeTranslation((end-start)*DELTA_X, 0, 0)
-            m321 = np.dot(m3, m21)
-            m4 = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
-            m = np.dot(m4, m321)
-        else:
-            m1 = matrix.makeTranslation(-start*DELTA_X, 0, 0)
+            # 1. Flip 180 degrees about Z to change direction
+            m1 = matrix.makeRotationZ(math.pi)
+            # 2. Translate as required
             m2 = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
             m = np.dot(m2, m1)
-        new_coords = matrix.applyTransform(old_coords, m)
+        else:
+            m = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
+
+        if is_5to3:
+            self.base_idxs[start:end] = list(range(x, x + end - start))
+        else:
+            self.base_idxs[start:end] = list(range(x + end - start - 1, 
+                                                    x - 1, -1 ) )
+            print(self.base_idxs)
+
+        self.transform_queue.append((m, start_idx, end_idx))
+    # end def
+
+    def applyTransformQueue(self):
+        new_coords = self.atom_group._getCoords()
+        for item in self.transform_queue:
+            m, start, end = item
+            new_coords[start:end] = matrix.applyTransform(new_coords[start:end], m)
+        self.transform_queue = []
+    # end def
+
+    def linearize(self):
+        """  Using self.base_idxs, separate out bases relative to one another
+        """
+        new_coords = self.atom_group._getCoords()
+        bidxs = self.base_idxs
+        sidxs = self.start_idxs
+        start = 0
+        lim = len(sidxs) - 1
+        for i in range(lim+1):
+            if i < lim:
+                next = sidxs[i+1]
+            else:
+                next = len(new_coords)
+            base_idx = bidxs[i]
+            m = matrix.makeTranslation(base_idx*DELTA_X, 0, 0)
+            new_coords[start:next] = matrix.applyTransform(new_coords[start:next], m)
+            start = next 
+        # end for
         self.atom_group.setCoords(new_coords)
     # end def
+
+
+    def applyTwist(self):
+        """ Using self.base_idxs, twist bases relative to one another
+        """
+        twist_per_segment = 2.*math.pi/self.bases_per_turn
+        theta0 = self.theta_offset
+        new_coords = self.atom_group._getCoords()
+        bidxs = self.base_idxs
+        sidxs = self.start_idxs
+        
+        start = 0
+        lim = len(sidxs) - 1
+        for i in range(lim+1):
+            if i < lim:
+                next = sidxs[i+1]
+            else:
+                next = len(new_coords)
+            base_idx = bidxs[i]
+            m = matrix.makeRotationX(base_idx*twist_per_segment + theta0)
+            new_coords[start:next] = matrix.applyTransform(new_coords[start:next], m)
+            start = next
+        # end for
+        self.atom_group.setCoords(new_coords)
+    # end def
+
 # end class
 
 
