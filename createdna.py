@@ -53,7 +53,7 @@ O3_IDX_OFFSET_INT = O3_ID_OFFSET_INT - 1
 AGBase = namedtuple('AGBase', ['idx', 'ag'])
 
 DELTA_X = 3.38      # distance in Angstroms between bases
-RADIUS_Y = 10.175   # Approximate radius of each base in Angstroms, unused
+RADIUS = 10.175   # Approximate radius of each base in Angstroms, unused
 
 BASE_LUT = np.zeros(128, dtype=int)
 BASE_LUT[b'A'[0]] = 0
@@ -67,24 +67,24 @@ BASE_LUT[b't'[0]] = 3
 
 def loadBasePDBs():
     base_atom_groups = []
-    base_bond_groups = []
+    base_bonds = []
     for fn in dna_pdb_files:
         the_file = op.join(DATA_DIR, fn)
         ag = parsePDB(the_file)
         # print(ag.getDataLabels())
         base_atom_groups.append(ag)
 
-        bg = parsePDBConnect(the_file)
-        base_bond_groups.append(bg)
-    return base_atom_groups, base_bond_groups
+        sub_bonds = parsePDBConnect(the_file)
+        base_bonds.append(sub_bonds)
+    return base_atom_groups, base_bonds
 
-base_atom_groups, base_bond_groups = loadBasePDBs()
+BASE_ATOM_GROUPS, BASE_BONDS = loadBasePDBs()
 
-def create5PrimeAGs(base_atom_groups, base_bond_groups):
+def create5PrimeAGs(base_atom_groups, base_bonds):
     """ Drop the trailing HCAP Hydrogen
     """
     five_p_atom_groups = []
-    bgs = []
+    bonds = []
     for i, ag in enumerate(base_atom_groups):
         ag_copy = ag.copy()
         ag_copy._n_atoms = ag_copy._n_atoms - 1
@@ -102,16 +102,16 @@ def create5PrimeAGs(base_atom_groups, base_bond_groups):
         ag_copy.setCoords(new_coords)
         # print("coord check %d (%d, %d) %d" %(ag_copy._n_atoms, len(ag._coords[0]), len(ag_copy._coords[0]), end_idx))
         five_p_atom_groups.append(ag_copy)
-        bgs.append([x.copy() for x in base_bond_groups[i][:end_idx]])
-    return five_p_atom_groups, bgs
+        bonds.append([x.copy() for x in base_bonds[i][:end_idx]])
+    return five_p_atom_groups, bonds
 # end def
-five_p_atom_groups, five_p_bgs = create5PrimeAGs(base_atom_groups, base_bond_groups)
+FIVE_P_ATOM_GROUPS, FIVE_P_BONDS = create5PrimeAGs(BASE_ATOM_GROUPS, BASE_BONDS)
 
-def create3PrimeAGs(base_atom_groups, base_bond_groups):
+def create3PrimeAGs(base_atom_groups, base_bonds):
     """ Drop the lead OH atoms
     """
     three_p_atom_groups = []
-    bgs = []
+    bonds = []
     for i, ag in enumerate(base_atom_groups):
         ag_copy = ag.copy()
         ag_copy._n_atoms = ag_copy._n_atoms - 2
@@ -131,17 +131,17 @@ def create3PrimeAGs(base_atom_groups, base_bond_groups):
         ag_copy.setCoords(new_coords)
         
         three_p_atom_groups.append(ag_copy)
-        bgs.append([x - 2 for x in base_bond_groups[i][start_idx:]])
-    return three_p_atom_groups, bgs
+        bonds.append([x - 2 for x in base_bonds[i][start_idx:]])
+    return three_p_atom_groups, bonds
 # end def
-three_p_atom_groups, three_p_bgs = create3PrimeAGs(base_atom_groups, base_bond_groups)
+THREE_P_ATOM_GROUPS, THREE_P_BONDS = create3PrimeAGs(BASE_ATOM_GROUPS, BASE_BONDS)
 
-def createINTAGs(base_atom_groups, base_bond_groups):
+def createINTAGs(base_atom_groups, base_bonds):
     """ Drop the lead OH atoms and trailing HCAP Hydrogen
     For internal bases
     """
     int_atom_groups = []
-    bgs = []
+    bonds = []
     for i, ag in enumerate(base_atom_groups):
         ag_copy = ag.copy()
         ag_copy._n_atoms = ag_copy._n_atoms - 3
@@ -161,112 +161,173 @@ def createINTAGs(base_atom_groups, base_bond_groups):
         ag_copy.setCoords(new_coords)
 
         int_atom_groups.append(ag_copy)
-        bgs.append([x - 2 for x in base_bond_groups[i][start_idx:end_idx]])
-    return int_atom_groups, bgs
+        bonds.append([x - 2 for x in base_bonds[i][start_idx:end_idx]])
+    return int_atom_groups, bonds
 # end def
-int_atom_groups, int_bgs = createINTAGs(base_atom_groups, base_bond_groups)
+INT_ATOM_GROUPS, INT_BONDS = createINTAGs(BASE_ATOM_GROUPS, BASE_BONDS)
+
+class AtomicSequence(object):
+    def __init__(self, seq, origin, name, bases_per_turn=10.5, theta_offset=0.0):
+        self.seq = seq
+        self.bases_per_turn = bases_per_turn
+        self.theta_offset = theta_offset
+        self.atom_group = None
+        self.bonds = None
+        self.start_idxs = [0]
+        start_idxs = self.start_idxs
+
+        twist_per_segment = 2.*math.pi/bases_per_turn
+
+        if isinstance(seq, str):
+            seq = seq.encode('utf-8')
+        ag_list = []
+        bond_list = []
+        lim = len(seq) - 1
+        offset = 0
+        for i, base in enumerate(seq):
+            idx = BASE_LUT[base]
+            if i == 0:
+                ag = FIVE_P_ATOM_GROUPS[idx].copy()
+                bg = FIVE_P_BONDS[idx].copy()
+                offset += ag.numAtoms()
+                start_idxs.append(offset)
+            elif i < lim:
+                ag = INT_ATOM_GROUPS[idx].copy()
+                bg = INT_BONDS[idx].copy()
+                offset += ag.numAtoms()
+                start_idxs.append(offset)
+            else:
+                ag = THREE_P_ATOM_GROUPS[idx].copy()
+                bg = THREE_P_BONDS[idx].copy()
+
+            m = matrix.makeTranslation(i*DELTA_X, 0, 0)
+            new_coords = matrix.applyTransform(ag._getCoords(), m)
+            m = matrix.makeRotationX(i*twist_per_segment)
+            new_coords = matrix.applyTransform(new_coords, m)
+
+            ag.setCoords(new_coords)
+            ag_list.append(AGBase(idx, ag))
+            bond_list.append(bg)
+
+        for x in ag_list:
+            print(x)
+
+        """ Concatenate AtomGroups and Bonds apply offsets to bond indices
+        reset offset variable will save a lookup into start_idxs
+        """
+        # prody.AtomGroup doesn't implement __radd__ so we can't do sum
+        ag_out = ag_list[0].ag
+        bonds_out = bond_list[0]
+        offset = ag_out.numAtoms()
+        num_atoms_last = 0
+
+        for i in range(1, len(ag_list)):
+            add_ag = ag_list[i].ag
+            num_atoms_new = add_ag.numAtoms()
+
+            # total things
+            ag_out += add_ag
+
+            bond_list_offset = [x + offset for x in bond_list[i]]
+            # different offset for connecting to the 5' end base
+            if i > 1:
+                offset1, offset2 = O3_ID_OFFSET_INT, O3_IDX_OFFSET_INT
+            else:
+                offset1, offset2 = O3_ID_OFFSET, O3_IDX_OFFSET
+
+            # Create Phosphate Bond 3' to 5'
+            base_from = start_idxs[i - 1] + offset1
+            bond_list_offset[0][1] = base_from
+            # Create Phosphate Bond 5' to 3'
+            base_to = bond_list_offset[0][0]
+            bonds_out[-num_atoms_last + offset2][2] = base_to
+            print("Connecting (%d, %d)" % (base_from, base_to))
+
+            bonds_out += bond_list_offset
+            offset += num_atoms_new
+            num_atoms_last = num_atoms_new
+        # end for
+
+        """
+        install phosphate bond by 
+        1. dropping the last Atom of the 5' side and
+        2. the -OH atoms of the of the 3' side. 
+        3. drop the last bond of the 5' side (the HCAP to the O) (base_bonds[i][-1])
+        4. for the 3' side, replace the base_bonds[i+1][1] of the 3' 
+            base_bonds[i+1][2][1] = offset = 
+        """
+
+        ag_out.setTitle(name)
+
+        self.atom_group = ag_out
+        self.bonds = bonds_out
+    # end def
+
+    def transformBases(self, start, end, x, y, z, is_5to3):
+        """
+        assumes start < end
+        start (int): the start index to transform
+        end (int): the end_idx to transform (use -1 for the end)
+        x (int): unit in bases from 0
+        y, z (float): units in multiple of RADIUS from 0,0
+        is_5to3 (bool): if the bases will be 5' to 3' in the x direction
+            or 3' to 5'
+        """
+        old_coords = self.atom_group._getCoords()
+        start_idxs = self.start_idxs
+
+        start_idx = self.start_idxs[start]
+        if end == -1 or len(self.seq) - 1:
+            end_idx = len(old_coords)
+        else:
+            end_idx = self.start_idxs[end]
+
+        if not is_5to3:
+            # 1. Move back to 0, 0, 0
+            m1 = matrix.makeTranslation(-start*DELTA_X, 0, 0)
+            # 2. Flip 180 degrees about Z to change direction
+            m2 = matrix.makeRotationZ(math.pi)
+            m21 = np.dot(m2, m1)
+            # 3. Translate to make the 3p end at 0
+            m3 = matrix.makeTranslation((end-start)*DELTA_X, 0, 0)
+            m321 = np.dot(m3, m21)
+            m4 = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
+            m = np.dot(m4, m321)
+        else:
+            m1 = matrix.makeTranslation(-start*DELTA_X, 0, 0)
+            m2 = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
+            m = np.dot(m2, m1)
+        new_coords = matrix.applyTransform(old_coords, m)
+        self.atom_group.setCoords(new_coords)
+    # end def
+# end class
+
 
 def createStrand(seq, 
                 origin, 
                 name="strand", 
-                is_fwd=False, 
+                is_5to3=False, 
                 bases_per_turn=10.5,
                 theta_offset=0.0,
                 create_psf=False):
     """
     """
-    # global base_atom_groups
-    twist_per_segment = 2.*math.pi/bases_per_turn
+    atom_sequence = AtomicSequence(seq, origin, name=name, 
+                                    bases_per_turn=bases_per_turn,
+                                    theta_offset=theta_offset)
 
-    if isinstance(seq, str):
-        seq = seq.encode('utf-8')
-    ag_list = []
-    bg_list = []
-    lim = len(seq) - 1
-    for i, base in enumerate(seq):
-        idx = BASE_LUT[base]
-        if i == 0:
-            ag = five_p_atom_groups[idx].copy()
-            bg = five_p_bgs[idx].copy()
-        elif i < lim:
-            ag = int_atom_groups[idx].copy()
-            bg = int_bgs[idx].copy()
-
-        else:
-            ag = three_p_atom_groups[idx].copy()
-            bg = three_p_bgs[idx].copy()
-        m = matrix.makeTranslation(i*DELTA_X, 0, 0)
-        new_coords = matrix.applyTransform(ag._getCoords(), m)
-        m = matrix.makeRotationX(i*twist_per_segment)
-        new_coords = matrix.applyTransform(new_coords, m)
-
-        ag.setCoords(new_coords)
-        ag_list.append(AGBase(idx, ag))
-        bg_list.append(bg)
-
-    for x in ag_list:
-        print(x)
-
-    # prody.AtomGroup doesn't implement __radd__ so we can't do sum
-    ag_out = ag_list[0].ag
-    bg_out = bg_list[0]
-    offset = ag_out.numAtoms()
-    offset__idx_list = [0]
-    num_atoms_last = 0
-
-    for i in range(1, len(ag_list)):
-        add_ag = ag_list[i].ag
-        num_atoms_new = add_ag.numAtoms()
-
-        # total things
-        ag_out += add_ag
-
-        # print("this offset:", i, num_atoms_last, len(bg_out))
-        bg_list_offset = [x + offset for x in bg_list[i]]
-        # different offset for connecting to the 5' end base
-        if i > 1:
-            offset1, offset2 = O3_ID_OFFSET_INT, O3_IDX_OFFSET_INT
-        else:
-            offset1, offset2 = O3_ID_OFFSET, O3_IDX_OFFSET
-
-        # Create Phosphate Bond 3' to 5'
-        base_from = offset__idx_list[-1] + offset1
-        bg_list_offset[0][1] = base_from
-        # Create Phosphate Bond 5' to 3'
-        base_to = bg_list_offset[0][0]
-        bg_out[-num_atoms_last + offset2][2] = base_to
-        print("Connecting (%d, %d)" % (base_from, base_to))
-        # print(-num_atoms_last + offset2, num_atoms_last, offset2, len(bg_out))
-
-        # print("off last", num_atoms_last)
-        bg_out += bg_list_offset
-
-
-        offset__idx_list.append(offset)
-        offset += num_atoms_new
-        num_atoms_last = num_atoms_new
-    # end for
-
-    """
-    install phosphate bond by 
-    1. dropping the last Atom of the 5' side and
-    2. the -OH atoms of the of the 3' side. 
-    3. drop the last bond of the 5' side (the HCAP to the O) (base_bond_groups[i][-1])
-    4. for the 3' side, replace the base_bond_groups[i+1][1] of the 3' 
-        base_bond_groups[i+1][2][1] = offset = 
-    """
-
-    ag_out.setTitle(name)
     out_file = 'test_file.pdb'
+    ag_out = atom_sequence.atom_group
     writePDB(out_file, ag_out)
-    # print("bgOut len:", len(bg_out))
-    writePDBConnect(out_file, bg_out)
+    # print("bgOut len:", len(bonds_out))
+    bonds_out = atom_sequence.bonds
+    writePDBConnect(out_file, bonds_out)
 
     if create_psf:
-        num_bonds = sum(len(x) for x in bg_out) - len(bg_out)
+        num_bonds = sum(len(x) for x in bonds_out) - len(bonds_out)
         bonds = []
         maxi = 0
-        for item in bg_out:
+        for item in bonds_out:
             i = item[0]
             for j in item[1:]:
                 if i < j: # so we don't double count
@@ -282,5 +343,7 @@ def createStrand(seq,
 # end def
 
 if __name__ == "__main__":
-    createStrand("ACGTACGTACG", None, create_psf=True)
+    # createStrand("ACGTACGTACG", None, create_psf=True)
+    createStrand("ACGTACGTACG", None)
+
     
