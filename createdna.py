@@ -53,7 +53,10 @@ O3_IDX_OFFSET_INT = O3_ID_OFFSET_INT - 1
 AGBase = namedtuple('AGBase', ['idx', 'ag'])
 
 DELTA_X = 3.38      # distance in Angstroms between bases
+DELTA_X_REV_OFFSET = 0.78 # unclear, but required
 RADIUS = 10.175   # Approximate radius of each base in Angstroms, unused
+
+THETA_REV_OFFSET = 0.18159025402704151
 
 BASE_LUT = np.zeros(128, dtype=int)
 BASE_LUT[b'A'[0]] = 0
@@ -64,6 +67,11 @@ BASE_LUT[b'a'[0]] = 0
 BASE_LUT[b'c'[0]] = 1
 BASE_LUT[b'g'[0]] = 2
 BASE_LUT[b't'[0]] = 3
+
+ROT = np.array([[ -1.0, -2.22044605e-16, -2.22044605e-16, 4.16],
+                [ -6.17095915e-03, -9.83378029e-01, -1.82110602e-01, 1.89824119e-03],
+                [  1.41609991e-04, -1.80761798e-01, 9.83150573e-01, 1.58762083e-03],
+                [  0.0,   0.0,  5.55111512e-17,   1.0]])
 
 def loadBasePDBs():
     base_atom_groups = []
@@ -270,12 +278,13 @@ class AtomicSequence(object):
         self.bonds = bonds_out
 
 
-        self.transformBases(5, 11, 0, 0, 0, False)
+        self.transformBases(1, 2, 0, 0, 0, False)
         # 1. Get base separation
         self.linearize()
         # 2. do all rotations
         self.applyReverseQueue()
         self.applyTwist()
+        
 
         # 3. move to position
         self.applyTransformQueue()
@@ -304,15 +313,19 @@ class AtomicSequence(object):
             # 1. Flip 180 degrees about Z to change direction
             m_rev = matrix.makeRotationZ(math.pi)
             self.reverse_queue.append((m_rev, start_idx, end_idx))
+            # self.reverse_queue.append((ROT, start_idx, end_idx))
             # 2. Translate as required
-            m = matrix.makeTranslation((x + end - start)*DELTA_X, 
+            m = matrix.makeTranslation((x + end - start)*DELTA_X + DELTA_X_REV_OFFSET, 
                                         y*RADIUS, 
                                         z*RADIUS)
+            # m = matrix.makeTranslation((x)*DELTA_X + DELTA_X_REV_OFFSET, 
+            #                             y*RADIUS, 
+            #                             z*RADIUS)
             self.twist_idxs[start:end] = list(range(end - start - 1, -1, -1))
         else:
             m = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
             self.twist_idxs[start:end] = list(range(0, end - start))
-
+        
         self.base_idxs[start:end] = list(range(0, end - start))
 
         print(self.base_idxs)
@@ -375,7 +388,10 @@ class AtomicSequence(object):
             else:
                 next = len(new_coords)
             twist_idx = tidxs[i]
-            m = matrix.makeRotationX(twist_idx*twist_per_segment + theta0)
+            if i == 1:
+                m = matrix.makeRotationX(twist_idx*twist_per_segment + theta0 + THETA_REV_OFFSET)
+            else:
+                m = matrix.makeRotationX(twist_idx*twist_per_segment + theta0)
             new_coords[start:next] = matrix.applyTransform(new_coords[start:next], m)
             start = next
         # end for
@@ -426,6 +442,25 @@ def createStrand(seq,
 
 if __name__ == "__main__":
     # createStrand("ACGTACGTACG", None, create_psf=True)
-    createStrand("ACGTACGTACG", None)
+    # a = R*b
+    a = np.eye(4)
+    a[:,0] = 4.16, -8.76, -1.609, 1    # P phosphate
+    a[:,1] = 3.94, -10.139, -1.116, 1  # O1P
+    a[:,2] = 3.37, -8.365, -2.796, 1   # O2P
+    a[:,3] = 3.91, -7.718, -0.43, 1    # O5'
+
+    b = np.eye(4)
+    b[:,0] = 0., 8.91, 0, 1            # P phosphate
+    b[:,1] = 0.22, 10.175, 0.734, 1    # O1P
+    b[:,2] = 0.79, 8.733, -1.24, 1     # O2P
+    b[:,3] = 0.25, 7.669, 0.971, 1     # O5'
+
+    R = np.dot(a, np.linalg.inv(b))
+    print(R)
+    print(np.dot(R, b[:,0]))
+
+    print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
+    # [[4.850,  -7.669,  0.674,  1.00]]
+    createStrand("AT", None)
 
     
