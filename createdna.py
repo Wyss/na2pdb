@@ -182,11 +182,14 @@ class AtomicSequence(object):
         self.bonds = None
 
         # list of virtual helix positions per bases where the  
-        self.base_idxs = list(range(len(seq))) 
+        self.base_idxs = list(range(len(seq)))
+        self.twist_idxs = list(range(len(seq)))
+
         # list of index offsets for the atoms in the combined group
         self.start_idxs = [0]
         start_idxs = self.start_idxs
 
+        self.reverse_queue = []
         self.transform_queue = []
 
         if isinstance(seq, str):
@@ -267,11 +270,15 @@ class AtomicSequence(object):
         self.bonds = bonds_out
 
 
-        self.transformBases(5, 11, 0, -2, 0, False)
-        self.applyTwist()
-        self.applyTransformQueue()
+        self.transformBases(5, 11, 0, 0, 0, False)
+        # 1. Get base separation
         self.linearize()
+        # 2. do all rotations
+        self.applyReverseQueue()
+        self.applyTwist()
 
+        # 3. move to position
+        self.applyTransformQueue()
     # end def
 
     def transformBases(self, start, end, x, y, z, is_5to3):
@@ -295,21 +302,30 @@ class AtomicSequence(object):
 
         if not is_5to3:
             # 1. Flip 180 degrees about Z to change direction
-            m1 = matrix.makeRotationZ(math.pi)
+            m_rev = matrix.makeRotationZ(math.pi)
+            self.reverse_queue.append((m_rev, start_idx, end_idx))
             # 2. Translate as required
-            m2 = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
-            m = np.dot(m2, m1)
+            m = matrix.makeTranslation((x + end - start)*DELTA_X, 
+                                        y*RADIUS, 
+                                        z*RADIUS)
+            self.twist_idxs[start:end] = list(range(end - start - 1, -1, -1))
         else:
             m = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
+            self.twist_idxs[start:end] = list(range(0, end - start))
 
-        if is_5to3:
-            self.base_idxs[start:end] = list(range(x, x + end - start))
-        else:
-            self.base_idxs[start:end] = list(range(x + end - start - 1, 
-                                                    x - 1, -1 ) )
-            print(self.base_idxs)
+        self.base_idxs[start:end] = list(range(0, end - start))
+
+        print(self.base_idxs)
 
         self.transform_queue.append((m, start_idx, end_idx))
+    # end def
+
+    def applyReverseQueue(self):
+        new_coords = self.atom_group._getCoords()
+        for item in self.reverse_queue:
+            m, start, end = item
+            new_coords[start:end] = matrix.applyTransform(new_coords[start:end], m)
+        self.reverse_queue = []
     # end def
 
     def applyTransformQueue(self):
@@ -348,7 +364,7 @@ class AtomicSequence(object):
         twist_per_segment = 2.*math.pi/self.bases_per_turn
         theta0 = self.theta_offset
         new_coords = self.atom_group._getCoords()
-        bidxs = self.base_idxs
+        tidxs = self.twist_idxs
         sidxs = self.start_idxs
         
         start = 0
@@ -358,8 +374,8 @@ class AtomicSequence(object):
                 next = sidxs[i+1]
             else:
                 next = len(new_coords)
-            base_idx = bidxs[i]
-            m = matrix.makeRotationX(base_idx*twist_per_segment + theta0)
+            twist_idx = tidxs[i]
+            m = matrix.makeRotationX(twist_idx*twist_per_segment + theta0)
             new_coords[start:next] = matrix.applyTransform(new_coords[start:next], m)
             start = next
         # end for
