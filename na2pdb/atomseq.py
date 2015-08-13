@@ -317,13 +317,13 @@ class AtomicSequence(object):
                                         y*RADIUS, 
                                         z*RADIUS)
             self.twists[start:end] = \
-                            [(x*twist_per_segment + theta0 + THETA_REV_OFFSET) \
-                                for x in range(end-1, start-1, -1)]
+                            [(q*twist_per_segment + theta0 + THETA_REV_OFFSET) \
+                                for q in range(x + start - end - 1, x - 1, -1)]
         else:
             m = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
             self.twists[start:end] = \
-                            [(x*twist_per_segment + theta0) \
-                                for x in range(start, end)]
+                            [(q*twist_per_segment + theta0) \
+                                for q in range(x, x + start - end)]
         
         self.base_idxs[start:end] = list(range(0, end - start))
 
@@ -432,8 +432,9 @@ def createStrand(seq,
                                     bases_per_turn=bases_per_turn,
                                     theta_offset=theta_offset)
 
-    # atom_sequence.transformBases(8, 16, 0, 0, 0, False)
-    atom_sequence.transformBases(1, 2, 0, 0, 0, False)
+    atom_sequence.transformBases(0, 8, 0, 0, 0, False)
+    atom_sequence.transformBases(8, 16, 0, 0, 0, False)
+    # atom_sequence.transformBases(1, 2, 0, 0, 0, False)
     # 1. Get base separation
     atom_sequence.linearize()
     # 2. do all rotations
@@ -471,8 +472,8 @@ if __name__ == "__main__":
 
     print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
     # [[4.850,  -7.669,  0.674,  1.00]]
-    # createStrand("ACGTACGTACGTACGT", None)
-    createStrand("AT", None)
+    createStrand("ACGTACGTACGTACGT", None)
+    # createStrand("AT", None)
 
 
 
