@@ -186,7 +186,7 @@ class AtomicSequence(object):
     2. move bases to correct positions
     3. Apply twist.
     """
-    def __init__(self, seq, name, bases_per_turn=10.5, theta_offset=0.0):
+    def __init__(self, seq, name='', bases_per_turn=10.5, theta_offset=0.0):
         self.seq = seq
         self.bases_per_turn = bases_per_turn
         self.theta_offset = theta_offset
