@@ -3,10 +3,12 @@ from prody.proteins import parsePDB, writePDB
 from prody.trajectory import writePSF
 import os.path as op
 from collections import namedtuple
-import matrix
+import na2pdb.matrix as matrix
 import math
 import numpy as np
-from parsebonds import parsePDBConnect, writePDBConnect
+from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
+from prody import LOGGER
+LOGGER.verbosity = 'none'
 """
 # strands axii assumed in the X direction
 
@@ -54,6 +56,10 @@ AGBase = namedtuple('AGBase', ['idx', 'ag'])
 
 DELTA_X = 3.38      # distance in Angstroms between bases
 DELTA_X_REV_OFFSET = 0.78 # unclear, but required
+
+PRETWIST_Y_OFFSET = 2.29005198e-03 # for reverse strands NOT SURE how to use this
+M_Y_OFF = matrix.makeTranslation(0, PRETWIST_Y_OFFSET, 0)
+
 RADIUS = 10.175   # Approximate radius of each base in Angstroms, unused
 
 THETA_REV_OFFSET = 0.18159025402704151
@@ -180,7 +186,7 @@ class AtomicSequence(object):
     2. move bases to correct positions
     3. Apply twist.
     """
-    def __init__(self, seq, origin, name, bases_per_turn=10.5, theta_offset=0.0):
+    def __init__(self, seq, name, bases_per_turn=10.5, theta_offset=0.0):
         self.seq = seq
         self.bases_per_turn = bases_per_turn
         self.theta_offset = theta_offset
@@ -226,8 +232,8 @@ class AtomicSequence(object):
             ag_list.append(AGBase(idx, ag))
             bond_list.append(bg)
 
-        for x in ag_list:
-            print(x)
+        # for x in ag_list:
+        #     print(x)
 
         """ Concatenate AtomGroups and Bonds apply offsets to bond indices
         reset offset variable will save a lookup into start_idxs
@@ -258,7 +264,7 @@ class AtomicSequence(object):
             # Create Phosphate Bond 5' to 3'
             base_to = bond_list_offset[0][0]
             bonds_out[-num_atoms_last + offset2][2] = base_to
-            print("Connecting (%d, %d)" % (base_from, base_to))
+            # print("Connecting (%d, %d)" % (base_from, base_to))
 
             bonds_out += bond_list_offset
             offset += num_atoms_new
@@ -304,7 +310,8 @@ class AtomicSequence(object):
             # 1. Flip 180 degrees about Z to change direction
             m_rev = matrix.makeRotationZ(math.pi)
             self.reverse_queue.append((m_rev, start_idx, end_idx))
-            # self.reverse_queue.append((ROT, start_idx, end_idx))
+            # self.reverse_queue.append((M_Y_OFF, start_idx, end_idx))  
+
             # 2. Translate as required
             m = matrix.makeTranslation((x + end - start)*DELTA_X + DELTA_X_REV_OFFSET, 
                                         y*RADIUS, 
@@ -362,7 +369,6 @@ class AtomicSequence(object):
         self.atom_group.setCoords(new_coords)
     # end def
 
-
     def applyTwist(self):
         """ Using self.base_idxs, twist bases relative to one another
         """
@@ -387,39 +393,16 @@ class AtomicSequence(object):
         self.atom_group.setCoords(new_coords)
     # end def
 
-# end class
+    def toPDB(self, filename):
+        ag_out = self.atom_group
+        writePDB(filename, ag_out)
+        bonds_out = self.bonds
+        writePDBConnect(filename, bonds_out)
+    # end def
 
-
-def createStrand(seq, 
-                origin, 
-                name="strand", 
-                is_5to3=False, 
-                bases_per_turn=10.5,
-                theta_offset=0.0,
-                create_psf=False):
-    """
-    """
-    atom_sequence = AtomicSequence(seq, origin, name=name, 
-                                    bases_per_turn=bases_per_turn,
-                                    theta_offset=theta_offset)
-
-    atom_sequence.transformBases(8, 16, 0, 0, 0, False)
-    # 1. Get base separation
-    atom_sequence.linearize()
-    # 2. do all rotations
-    atom_sequence.applyReverseQueue()
-    atom_sequence.applyTwist()
-    # 3. move to position
-    atom_sequence.applyTransformQueue()
-
-    out_file = 'test_file.pdb'
-    ag_out = atom_sequence.atom_group
-    writePDB(out_file, ag_out)
-    # print("bgOut len:", len(bonds_out))
-    bonds_out = atom_sequence.bonds
-    writePDBConnect(out_file, bonds_out)
-
-    if create_psf:
+    def toPSF(self, filename):
+        ag_out = self.atom_group
+        bonds_out = self.bonds
         num_bonds = sum(len(x) for x in bonds_out) - len(bonds_out)
         bonds = []
         maxi = 0
@@ -434,8 +417,37 @@ def createStrand(seq,
                     maxi = j
         print(ag_out.numAtoms(), maxi)
         ag_out.setBonds(bonds)
-        writePSF('test_file.psf', ag_out)
-    return ag_out
+        writePSF(filename, ag_out)
+# end class
+
+
+def createStrand(seq, 
+                name="strand", 
+                bases_per_turn=10.5,
+                theta_offset=0.0,
+                create_psf=False):
+    """
+    """
+    atom_sequence = AtomicSequence(seq, name=name, 
+                                    bases_per_turn=bases_per_turn,
+                                    theta_offset=theta_offset)
+
+    # atom_sequence.transformBases(8, 16, 0, 0, 0, False)
+    atom_sequence.transformBases(1, 2, 0, 0, 0, False)
+    # 1. Get base separation
+    atom_sequence.linearize()
+    # 2. do all rotations
+    atom_sequence.applyReverseQueue()
+    atom_sequence.applyTwist()
+    # 3. move to position
+    atom_sequence.applyTransformQueue()
+
+    out_file = 'test_file.pdb'
+    atom_sequence.toPDB(out_file)
+
+    if create_psf:
+        atom_sequence.toPSF('test_file.psf')
+    return atom_sequence.atom_group
 # end def
 
 if __name__ == "__main__":
@@ -459,7 +471,8 @@ if __name__ == "__main__":
 
     print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
     # [[4.850,  -7.669,  0.674,  1.00]]
-    createStrand("ACGTACGTACGTACGT", None)
+    # createStrand("ACGTACGTACGTACGT", None)
+    createStrand("AT", None)
 
 
 
