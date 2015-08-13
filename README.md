@@ -18,17 +18,17 @@ for double stranded DNA as would be generated from Avogadro 1.1.1.
 """ create a strand that double backs on itself
 """
 from na2pdb import AtomicSequence
-as = AtomicSequence("ACGTACGT", name="not_useful")
-as.transformBases(4, 8, 0, 0, 0, False)
+aseq = AtomicSequence("ACGTACGT", name="not_useful")
+aseq.transformBases(4, 8, 0, 0, 0, False)
 # 1. Get base separation
-as.linearize()
+aseq.linearize()
 # 2. do all rotations
-as.applyReverseQueue()
-as.applyTwist()
+aseq.applyReverseQueue()
+aseq.applyTwist()
 # 3. move to position
-as.applyTransformQueue()
+aseq.applyTransformQueue()
 
 out_file = 'test_file.pdb'
-as.toPDB(out_file)
+aseq.toPDB(out_file)
 ```
 
