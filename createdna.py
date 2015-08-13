@@ -191,7 +191,8 @@ class AtomicSequence(object):
 
         # list of virtual helix positions per bases where the  
         self.base_idxs = list(range(len(seq)))
-        self.twist_idxs = list(range(len(seq)))
+        twist_per_segment = 2.*math.pi/self.bases_per_turn
+        self.twists = [x*twist_per_segment + theta_offset for x in range(len(seq))]
 
         # list of index offsets for the atoms in the combined group
         self.start_idxs = [0]
@@ -276,18 +277,6 @@ class AtomicSequence(object):
         ag_out.setTitle(name)
         self.atom_group = ag_out
         self.bonds = bonds_out
-
-
-        self.transformBases(1, 2, 0, 0, 0, False)
-        # 1. Get base separation
-        self.linearize()
-        # 2. do all rotations
-        self.applyReverseQueue()
-        self.applyTwist()
-        
-
-        # 3. move to position
-        self.applyTransformQueue()
     # end def
 
     def transformBases(self, start, end, x, y, z, is_5to3):
@@ -302,6 +291,8 @@ class AtomicSequence(object):
         """
         old_coords = self.atom_group._getCoords()   # points to source array
         start_idxs = self.start_idxs
+        twist_per_segment = 2.*math.pi/self.bases_per_turn
+        theta0 = self.theta_offset
 
         start_idx = self.start_idxs[start]
         if end == -1 or len(self.seq) - 1:
@@ -318,13 +309,14 @@ class AtomicSequence(object):
             m = matrix.makeTranslation((x + end - start)*DELTA_X + DELTA_X_REV_OFFSET, 
                                         y*RADIUS, 
                                         z*RADIUS)
-            # m = matrix.makeTranslation((x)*DELTA_X + DELTA_X_REV_OFFSET, 
-            #                             y*RADIUS, 
-            #                             z*RADIUS)
-            self.twist_idxs[start:end] = list(range(end - start - 1, -1, -1))
+            self.twists[start:end] = \
+                            [(x*twist_per_segment + theta0 + THETA_REV_OFFSET) \
+                                for x in range(end - start - 1, -1, -1)]
         else:
             m = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
-            self.twist_idxs[start:end] = list(range(0, end - start))
+            self.twists[start:end] = \
+                            [(x*twist_per_segment + theta0) \
+                                for x in range(0, end - start)]
         
         self.base_idxs[start:end] = list(range(0, end - start))
 
@@ -377,7 +369,7 @@ class AtomicSequence(object):
         twist_per_segment = 2.*math.pi/self.bases_per_turn
         theta0 = self.theta_offset
         new_coords = self.atom_group._getCoords()
-        tidxs = self.twist_idxs
+        tidxs = self.twists
         sidxs = self.start_idxs
         
         start = 0
@@ -387,11 +379,8 @@ class AtomicSequence(object):
                 next = sidxs[i+1]
             else:
                 next = len(new_coords)
-            twist_idx = tidxs[i]
-            if i == 1:
-                m = matrix.makeRotationX(twist_idx*twist_per_segment + theta0 + THETA_REV_OFFSET)
-            else:
-                m = matrix.makeRotationX(twist_idx*twist_per_segment + theta0)
+            theta = tidxs[i]
+            m = matrix.makeRotationX(theta)
             new_coords[start:next] = matrix.applyTransform(new_coords[start:next], m)
             start = next
         # end for
@@ -413,6 +402,15 @@ def createStrand(seq,
     atom_sequence = AtomicSequence(seq, origin, name=name, 
                                     bases_per_turn=bases_per_turn,
                                     theta_offset=theta_offset)
+
+    atom_sequence.transformBases(8, 16, 0, 0, 0, False)
+    # 1. Get base separation
+    atom_sequence.linearize()
+    # 2. do all rotations
+    atom_sequence.applyReverseQueue()
+    atom_sequence.applyTwist()
+    # 3. move to position
+    atom_sequence.applyTransformQueue()
 
     out_file = 'test_file.pdb'
     ag_out = atom_sequence.atom_group
@@ -461,6 +459,8 @@ if __name__ == "__main__":
 
     print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
     # [[4.850,  -7.669,  0.674,  1.00]]
-    createStrand("AT", None)
+    createStrand("ACGTACGTACGTACGT", None)
+
+
 
     
