@@ -327,7 +327,7 @@ class AtomicSequence(object):
         
         self.base_idxs[start:end] = list(range(0, end - start))
 
-        print(self.base_idxs)
+        # print(self.base_idxs)
 
         self.transform_queue.append((m, start_idx, end_idx))
     # end def
