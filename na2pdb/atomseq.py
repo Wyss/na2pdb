@@ -318,12 +318,12 @@ class AtomicSequence(object):
                                         z*RADIUS)
             self.twists[start:end] = \
                             [(x*twist_per_segment + theta0 + THETA_REV_OFFSET) \
-                                for x in range(end - start - 1, -1, -1)]
+                                for x in range(end-1, start-1, -1)]
         else:
             m = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
             self.twists[start:end] = \
                             [(x*twist_per_segment + theta0) \
-                                for x in range(0, end - start)]
+                                for x in range(start, end)]
         
         self.base_idxs[start:end] = list(range(0, end - start))
 
