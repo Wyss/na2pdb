@@ -4,6 +4,7 @@ from prody.trajectory import writePSF
 import os.path as op
 from collections import namedtuple
 import na2pdb.matrix as matrix
+from na2pdb.cml import writeCML 
 import math
 import numpy as np
 from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
@@ -424,6 +425,7 @@ class AtomicSequence(object):
         writePDB(filename, ag_out)
         bonds_out = self.bonds
         writePDBConnect(filename, bonds_out)
+        writeCML(filename + '.cml', self)
     # end def
 
     def toPSF(self, filename):
