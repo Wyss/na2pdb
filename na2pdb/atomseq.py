@@ -3,10 +3,10 @@ from prody.proteins import parsePDB, writePDB
 from prody.trajectory import writePSF
 import os.path as op
 from collections import namedtuple
-import matrix as matrix
+import na2pdb.matrix as matrix
 import math
 import numpy as np
-from parsebonds import parsePDBConnect, writePDBConnect
+from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
 from prody import LOGGER
 LOGGER.verbosity = 'none'
 """
@@ -279,7 +279,6 @@ class AtomicSequence(object):
         4. for the 3' side, replace the base_bonds[i+1][1] of the 3' 
             base_bonds[i+1][2][1] = offset = 
         """
-
         ag_out.setTitle(name)
         self.atom_group = ag_out
         self.bonds = bonds_out
@@ -301,10 +300,13 @@ class AtomicSequence(object):
         theta0 = self.theta_offset
 
         start_idx = self.start_idxs[start]
-        if end == -1 or len(self.seq) - 1:
+        if end == -1 or end > len(self.seq) - 1:
+            # print("doop", end)
             end_idx = len(old_coords)
         else:
+            # print("goop", end)
             end_idx = self.start_idxs[end]
+            
         if not is_5to3:
             # 1. Flip 180 degrees about Z to change direction
             m_rev = matrix.makeRotationZ(math.pi)
@@ -316,6 +318,9 @@ class AtomicSequence(object):
             m = matrix.makeTranslation((x + end - start)*DELTA_X + DELTA_X_REV_OFFSET, 
                                         y*RADIUS, 
                                         z*RADIUS)
+            if x + end - start - 1 < 1:
+                print("tb", len(self.twists), x, end, start, x + end - start - 1)
+                raise ValueError("poop")
             self.twists[start:end] = [(q*twist_per_segment + theta0 + THETA_REV_OFFSET)\
                                          for q in range(x + end - start - 1, x - 1, -1)]
         else:
@@ -323,7 +328,7 @@ class AtomicSequence(object):
 
             self.twists[start:end] = \
                             [(q*twist_per_segment + theta0) \
-                                for q in range(x, x + start - end)]
+                                for q in range(x, x + end - start)]
 
         self.base_idxs[start:end] = list(range(0, end - start))
 
@@ -377,6 +382,8 @@ class AtomicSequence(object):
         new_coords = self.atom_group._getCoords()
         tidxs = self.twists
         sidxs = self.start_idxs
+        # print("checker", len(tidxs), len(sidxs))
+        assert(len(tidxs) == len(sidxs))
         start = 0
         lim = len(sidxs) - 1
         for i in range(lim+1):
@@ -384,6 +391,7 @@ class AtomicSequence(object):
                 next = sidxs[i+1]
             else:
                 next = len(new_coords)
+            # print("twists", i, len(tidxs))
             theta = tidxs[i]
             m = matrix.makeRotationX(theta)
             new_coords[start:next] = matrix.applyTransform(new_coords[start:next], m)
@@ -431,9 +439,8 @@ def createStrand(seq,
                                     bases_per_turn=bases_per_turn,
                                     theta_offset=theta_offset)
 
-    atom_sequence.transformBases(0, 8, 0, 0, 0, True)
-    atom_sequence.transformBases(8, 16, 0, -2, 0, False)
-    # atom_sequence.transformBases(1, 2, 0, 0, 0, False)
+    atom_sequence.transformBases(0, 8, 8, 0, 0, True)
+    atom_sequence.transformBases(8, 16, 8, 0, 0, False)
     # 1. Get base separation
     atom_sequence.linearize()
     # 2. do all rotations
