@@ -3,10 +3,10 @@ from prody.proteins import parsePDB, writePDB
 from prody.trajectory import writePSF
 import os.path as op
 from collections import namedtuple
-import na2pdb.matrix as matrix
+import matrix as matrix
 import math
 import numpy as np
-from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
+from parsebonds import parsePDBConnect, writePDBConnect
 from prody import LOGGER
 LOGGER.verbosity = 'none'
 """
@@ -25,7 +25,7 @@ LOGGER.verbosity = 'none'
 dna_pdb_files = [   'A_single.pdb',
                     'C_single.pdb', 
                     'G_single.pdb', 
-                    'T_single.pdb'
+                    'T_single2.pdb'
                 ]
 LOCAL_DIR = op.dirname(op.abspath(__file__))
 DATA_DIR = op.join(LOCAL_DIR, 'data')
@@ -198,7 +198,7 @@ class AtomicSequence(object):
         # list of virtual helix positions per bases where the  
         self.base_idxs = list(range(len(seq)))
         twist_per_segment = 2.*math.pi/self.bases_per_turn
-        self.twists = [x*twist_per_segment + theta_offset for x in range(len(seq))]
+        self.twists = [q*twist_per_segment + theta_offset for q in range(len(seq))]
 
         # list of index offsets for the atoms in the combined group
         self.start_idxs = [0]
@@ -305,7 +305,6 @@ class AtomicSequence(object):
             end_idx = len(old_coords)
         else:
             end_idx = self.start_idxs[end]
-
         if not is_5to3:
             # 1. Flip 180 degrees about Z to change direction
             m_rev = matrix.makeRotationZ(math.pi)
@@ -313,18 +312,19 @@ class AtomicSequence(object):
             # self.reverse_queue.append((M_Y_OFF, start_idx, end_idx))  
 
             # 2. Translate as required
+            # print("translating", x + end - start )
             m = matrix.makeTranslation((x + end - start)*DELTA_X + DELTA_X_REV_OFFSET, 
                                         y*RADIUS, 
                                         z*RADIUS)
-            self.twists[start:end] = \
-                            [(q*twist_per_segment + theta0 + THETA_REV_OFFSET) \
-                                for q in range(x + start - end - 1, x - 1, -1)]
+            self.twists[start:end] = [(q*twist_per_segment + theta0 + THETA_REV_OFFSET)\
+                                         for q in range(x + end - start - 1, x - 1, -1)]
         else:
             m = matrix.makeTranslation(x*DELTA_X, y*RADIUS, z*RADIUS)
+
             self.twists[start:end] = \
                             [(q*twist_per_segment + theta0) \
                                 for q in range(x, x + start - end)]
-        
+
         self.base_idxs[start:end] = list(range(0, end - start))
 
         # print(self.base_idxs)
@@ -377,7 +377,6 @@ class AtomicSequence(object):
         new_coords = self.atom_group._getCoords()
         tidxs = self.twists
         sidxs = self.start_idxs
-        
         start = 0
         lim = len(sidxs) - 1
         for i in range(lim+1):
@@ -432,8 +431,8 @@ def createStrand(seq,
                                     bases_per_turn=bases_per_turn,
                                     theta_offset=theta_offset)
 
-    atom_sequence.transformBases(0, 8, 0, 0, 0, False)
-    atom_sequence.transformBases(8, 16, 0, 0, 0, False)
+    atom_sequence.transformBases(0, 8, 0, 0, 0, True)
+    atom_sequence.transformBases(8, 16, 0, -2, 0, False)
     # atom_sequence.transformBases(1, 2, 0, 0, 0, False)
     # 1. Get base separation
     atom_sequence.linearize()
@@ -467,10 +466,10 @@ if __name__ == "__main__":
     b[:,3] = 0.25, 7.669, 0.971, 1     # O5'
 
     R = np.dot(a, np.linalg.inv(b))
-    print(R)
-    print(np.dot(R, b[:,0]))
+    # print(R)
+    # print(np.dot(R, b[:,0]))
 
-    print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
+    # print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
     # [[4.850,  -7.669,  0.674,  1.00]]
     createStrand("ACGTACGTACGTACGT", None)
     # createStrand("AT", None)
