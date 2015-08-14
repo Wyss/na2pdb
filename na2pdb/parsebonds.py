@@ -31,5 +31,7 @@ def writePDBConnect(fn, bonds):
             outstring += ''.join(["%5d" for x in range(num_bonds)])
             outstring += '\n'
             fd.write(outstring % tuple(bonds_per_atom))
+        num_atoms = len(bonds)
+        fd.write('MASTER        0    0    0    0    0    0    0    0%5d    0%5d    0\n' % (num_atoms, num_atoms))
         fd.write('END\n')
 # end def

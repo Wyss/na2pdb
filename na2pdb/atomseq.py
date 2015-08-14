@@ -217,17 +217,19 @@ class AtomicSequence(object):
             idx = BASE_LUT[base]
             if i == 0:
                 ag = FIVE_P_ATOM_GROUPS[idx].copy()
-                bg = FIVE_P_BONDS[idx].copy()
+                # copy a list a lists
+                # FIVE_P_BONDS : [ [array(), array(),] ]
+                bg = [x.copy() for x in FIVE_P_BONDS[idx]]
                 offset += ag.numAtoms()
                 start_idxs.append(offset)
             elif i < lim:
                 ag = INT_ATOM_GROUPS[idx].copy()
-                bg = INT_BONDS[idx].copy()
+                bg = [x.copy() for x in INT_BONDS[idx]]
                 offset += ag.numAtoms()
                 start_idxs.append(offset)
             else:
                 ag = THREE_P_ATOM_GROUPS[idx].copy()
-                bg = THREE_P_BONDS[idx].copy()
+                bg = [x.copy() for x in THREE_P_BONDS[idx]]
 
             ag_list.append(AGBase(idx, ag))
             bond_list.append(bg)
@@ -282,6 +284,25 @@ class AtomicSequence(object):
         ag_out.setTitle(name)
         self.atom_group = ag_out
         self.bonds = bonds_out
+    # end def
+
+    def concat(self, other):
+        if not isinstance(other, AtomicSequence ):
+            raise TypeError('unsupported operand type(s) for +: {0} and '
+                            '{1}'.format(repr(type(self).__name__),
+                                         repr(type(other).__name__)))
+
+        atom_offset = self.atom_group.numAtoms()
+        name = self.atom_group.getTitle()
+        # 1. offset bonds
+        obonds = other.bonds
+        for i in range(len(other.bonds)):
+            obonds[i] += atom_offset    # add scalar to array
+        # add atom groups
+        self.atom_group += other.atom_group
+        self.atom_group.setTitle(name)
+        self.bonds += other.bonds
+        # don't bother with self.start_idxs, self.twists, etc for now
     # end def
 
     def transformBases(self, start, end, x, y, z, is_5to3):
@@ -377,8 +398,6 @@ class AtomicSequence(object):
     def applyTwist(self):
         """ Using self.base_idxs, twist bases relative to one another
         """
-        twist_per_segment = 2.*math.pi/self.bases_per_turn
-        theta0 = self.theta_offset
         new_coords = self.atom_group._getCoords()
         tidxs = self.twists
         sidxs = self.start_idxs
