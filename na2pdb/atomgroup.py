@@ -46,6 +46,10 @@ class AtomGroup(object):
         self.coords[index] = coords
     # end def
 
+    def numCoordsets(self):
+        return len(self.coords)
+    # end def
+
     def concat(self, other):
         """ combine two atom groups while int
         """

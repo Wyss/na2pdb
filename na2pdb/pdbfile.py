@@ -49,7 +49,7 @@ class PDBParseError(Exception):
     pass
 
 
-_parsePDBdoc = _parsePQRdoc + """
+_parsePDBdoc = """
     :arg model: model index or None (read all models), e.g. ``model=10``
     :type model: int, list
 
@@ -66,7 +66,7 @@ _parsePDBdoc = _parsePQRdoc + """
 
 _PDBSubsets = {'ca': 'ca', 'calpha': 'ca', 'bb': 'bb', 'backbone': 'bb'}
 
-def parsePDB(pdb, **kwargs):
+def parsePDB(pdb, altloc='A', model=None):
     """Return an :class:`.AtomGroup` and/or dictionary containing header data
     parsed from a PDB file.
 
@@ -83,23 +83,18 @@ def parsePDB(pdb, **kwargs):
         title = title[3:]
     kwargs['title'] = title
     with open(pdb, 'r') as fd:
-        result = parsePDBStream(fd, **kwargs)
+        result = parsePDBStream(fd, altloc, model)
     return result
 
 parsePDB.__doc__ += _parsePDBdoc
 
-def parsePDBStream(stream, **kwargs):
+def parsePDBStream(stream, altloc, model):
     """Return an :class:`.AtomGroup` and/or dictionary containing header data
     parsed from a stream of PDB lines.
 
     :arg stream: Anything that implements the method ``readlines``
         (e.g. :class:`file`, buffer, stdin)"""
 
-    model = kwargs.get('model')
-    header = kwargs.get('header', False)
-    assert isinstance(header, bool), 'header must be a boolean'
-
-    altloc = kwargs.get('altloc', 'A')
     if model is not None:
         if isinstance(model, int):
             if model < 0:
@@ -107,40 +102,28 @@ def parsePDBStream(stream, **kwargs):
         else:
             raise TypeError('model must be an integer, {0} is invalid'
                             .format(str(model)))
-    title_suffix = ''
+    ag = AtomGroup()
 
-    ag = None
-    if 'ag' in kwargs:
-        ag = kwargs['ag']
-        if not isinstance(ag, AtomGroup):
-            raise TypeError('ag must be an AtomGroup instance')
-        n_csets = ag.numCoordsets()
-    elif model != 0:
-        ag = AtomGroup(str(kwargs.get('title', 'Unknown')) + title_suffix)
-        n_csets = 0
-
-    if model != 0:
+    try:
+        lines = stream.readlines()
+    except AttributeError as err:
         try:
-            lines = stream.readlines()
-        except AttributeError as err:
-            try:
-                lines = stream.read().split('\n')
-            except AttributeError:
-                raise err
-        if not len(lines):
-            raise ValueError('empty PDB file or stream')
+            lines = stream.read().split('\n')
+        except AttributeError:
+            raise err
+    if not len(lines):
+        raise ValueError('empty PDB file or stream')
 
-        _parsePDBLines(ag, lines, split, model, altloc)
-        if ag.numAtoms() > 0:
-            LOGGER.debug('{0} atoms and {1} coordinate set(s) were '
-                          'parsed in %.2fs.'.format(ag.numAtoms(),
-                           ag.numCoordsets() - n_csets))
-        else:
-            ag = None
-            LOGGER.warning('Atomic data could not be parsed, please '
-                        'check the input file.')
-    if model != 0:
-        return ag
+    _parsePDBLines(ag, lines, split, model, altloc)
+    if ag.numAtoms() > 0:
+        LOGGER.debug('{0} atoms and {1} coordinate set(s) were '
+                      'parsed in %.2fs.'.format(ag.numAtoms(),
+                       ag.numCoordsets()))
+    else:
+        ag = None
+        LOGGER.warning('Atomic data could not be parsed, please '
+                    'check the input file.')
+    return ag
 
 parsePDBStream.__doc__ += _parsePDBdoc
 
