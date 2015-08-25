@@ -90,62 +90,6 @@ class AtomGroup(object):
         return len(self.trajectories)
     # end def
 
-    def setNames(self):
-
-    # end def
-
-    def getNames(self):
-
-    # end def
-
-    def setAltlocs(self):
-
-    # end def
-
-    def getAltLocs(self):
-
-    # end def
-
-    def getResName(self):
-
-    # end def
-
-    def setResName(self):
-
-    # end def
-
-    def getChainID(self):
-
-    # end def
-
-    def setChainID(self):
-
-    # end def
-
-    def getResSeqs(self):
-
-    # end def
-
-    def setResSeqs(self):
-
-    # end def
-
-    def getCoords(self):
-
-    # end def
-
-    def setCoords(self):
-
-    # end def
-
-    def getOccupancies(self):
-
-    # end def
-
-    def setOccupancies(self):
-
-    # end def
-
     def setBonds(self, bonds):
         """Set covalent bonds between atoms.  *bonds* must be a list or an
         array of pairs of indices.  All bonds must be set at once.  Bonding
