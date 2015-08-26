@@ -1,1 +1,1 @@
-from .atomseq import AtomicSequence
+from .atomseq2 import AtomicSequence

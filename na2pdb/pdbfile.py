@@ -35,11 +35,15 @@ ATOMIC_FIELDS = {
     'chindex':  int, 
     'segindex': int,
     'fragindex':int,
-    'numbonds': int
+    'numbonds': int,
+    'hetero': STR_DTYPE + '6',
 }
 
 import numpy as np
-from na2pdb.atomgroup import AtomGroup
+try:
+    from na2pdb.atomgroup import AtomGroup
+except:
+    from atomgroup import AtomGroup
 import logging as LOGGER
 
 __all__ = ['parsePDBStream', 'parsePDB',
@@ -81,7 +85,6 @@ def parsePDB(pdb, altloc='A', model=None):
         title, ext = os.path.splitext(title)
     if len(title) == 7 and title.startswith('pdb'):
         title = title[3:]
-    kwargs['title'] = title
     with open(pdb, 'r') as fd:
         result = parsePDBStream(fd, altloc, model)
     return result
@@ -114,7 +117,7 @@ def parsePDBStream(stream, altloc, model):
     if not len(lines):
         raise ValueError('empty PDB file or stream')
 
-    _parsePDBLines(ag, lines, split, model, altloc)
+    _parsePDBLines(ag, lines, model, altloc)
     if ag.numAtoms() > 0:
         LOGGER.debug('{0} atoms and {1} coordinate set(s) were '
                       'parsed in %.2fs.'.format(ag.numAtoms(),
@@ -127,23 +130,23 @@ def parsePDBStream(stream, altloc, model):
 
 parsePDBStream.__doc__ += _parsePDBdoc
 
-def _parsePDBLines(atomgroup, lines, split, model, altloc_torf):
+def _parsePDBLines(atomgroup, lines, model, altloc_torf):
     """Return an AtomGroup. See also :func:`.parsePDBStream()`.
 
     :arg lines: PDB/PQR lines
     :arg split: starting index for coordinate data lines"""
 
-    only_subset = False
-=
+    split = 0
     onlycoords = False
     n_atoms = atomgroup.numAtoms()
     if n_atoms > 0:
+        print("FARTS", n_atoms)
         asize = n_atoms
     else:
         # most PDB files contain less than 99999 atoms
         asize = min(len(lines) - split, 99999)
     addcoords = False
-    if atomgroup.numCoordsets() > 0:
+    if atomgroup.numCoordsets() > 1:
         addcoords = True
     alength = asize
     coordinates = np.zeros((asize, 3), dtype=float)
@@ -202,15 +205,8 @@ def _parsePDBLines(atomgroup, lines, split, model, altloc_torf):
         startswith = line[0:6]
 
         if startswith == 'ATOM  ' or startswith == 'HETATM':
-            if only_subset:
-                atomname = line[12:16].strip()
-                resname = line[17:21].strip()
-                if not (atomname in subset and resname in protein_resnames):
-                    i += 1
-                    continue
-            else:
-                atomname = line[12:16]
-                resname = line[17:21]
+            atomname = line[12:16]
+            resname = line[17:21]
 
             chid = line[21]
 
@@ -224,10 +220,11 @@ def _parsePDBLines(atomgroup, lines, split, model, altloc_torf):
                 coordinates[acount, 1] = line[38:46]
                 coordinates[acount, 2] = line[46:54]
             except:
+                raise
                 if acount >= n_atoms > 0:
-                    if nmodel ==0:
-                        raise ValueError(format + 'file and AtomGroup ag must '
-                                         'have same number of atoms')
+                    if nmodel == 0:
+                        raise ValueError('PDB file and AtomGroup ag must '
+                                         'have same number of atoms: %d, %d' % (acount, n_atoms))
                     LOGGER.warning('Discarding model {0}, which contains more '
                             'atoms than first model does.'.format(nmodel+1))
                     acount = 0
@@ -350,7 +347,7 @@ def _parsePDBLines(atomgroup, lines, split, model, altloc_torf):
                     if addcoords:
                         atomgroup.addCoordset(coordinates)
                     else:
-                        atomgroup._setCoords(coordinates)
+                        atomgroup.setCoordset(coordinates, index=0)
                 else:
                     coordsets = np.zeros((diff/acount+1, acount, 3))
                     coordsets[0] = coordinates[:acount]
@@ -361,17 +358,22 @@ def _parsePDBLines(atomgroup, lines, split, model, altloc_torf):
                 chainids.resize(acount)
                 hetero.resize(acount)
                 termini.resize(acount)
+
+                atomgroup.setFlags('hetatm', hetero)
+                atomgroup.setFlags('pdbter', termini)
+
                 altlocs.resize(acount)
                 icodes.resize(acount)
                 serials.resize(acount)
-                if not only_subset:
-                    atomnames = np.char.strip(atomnames)
-                    resnames = np.char.strip(resnames)
+
+                atomnames = np.char.strip(atomnames)
+                resnames = np.char.strip(resnames)
 
                 bfactors.resize(acount)
                 occupancies.resize(acount)
                 segnames.resize(acount)
                 elements.resize(acount)
+                charges.resize(acount)
                 segnames = np.char.strip(segnames)
 
                 if anisou is not None:
@@ -440,26 +442,30 @@ def _parsePDBLines(atomgroup, lines, split, model, altloc_torf):
         if addcoords:
             atomgroup.addCoordset(coordsets)
         else:
-            atomgroup._setCoords(coordsets)
+            atomgroup.setCoordset(coords, index=0)
     elif not END:
         # this means last line was an ATOM line, so atomgroup is not decorated
         coordinates.resize((acount, 3))
         if addcoords:
             atomgroup.addCoordset(coordinates)
         else:
-            atomgroup._setCoords(coordinates)
+            atomgroup.setCoordset(coordinates, index=0)
         atomnames.resize(acount)
         resnames.resize(acount)
         resnums.resize(acount)
         chainids.resize(acount)
+        
         hetero.resize(acount)
         termini.resize(acount)
+        atomgroup.setFlags('hetatm', hetero)
+        atomgroup.setFlags('pdbter', termini)
+        
         altlocs.resize(acount)
         icodes.resize(acount)
         serials.resize(acount)
-        if not only_subset:
-            atomnames = np.char.strip(atomnames)
-            resnames = np.char.strip(resnames)
+
+        atomnames = np.char.strip(atomnames)
+        resnames = np.char.strip(resnames)
 
         if anisou is not None:
             anisou.resize((acount, 6))
@@ -472,6 +478,7 @@ def _parsePDBLines(atomgroup, lines, split, model, altloc_torf):
         segnames.resize(acount)
         segnames = np.char.strip(segnames)
         elements.resize(acount)
+        charges.resize(acount)
 
         atomgroup.setDataFrame(atomnames, altlocs, resnames, 
                         chainids, resnums, np.char.strip(icodes),
@@ -573,7 +580,7 @@ def writePDBStream(stream, atomgroup, **kwargs):
     n_atoms = atomgroup.numAtoms()
     occupancies = df['occupancy']
     bfactors = df['tempFactor']
-    atomnames = df['names'].copy()
+    atomnames = df['name'].copy()
     
     for i, an in enumerate(atomnames):
         if len(an) < 4:
@@ -590,21 +597,21 @@ def writePDBStream(stream, atomgroup, **kwargs):
     icodes = df['iCode']
 
     hetero = ['ATOM'] * n_atoms
-    # heteroflags = atoms._getFlags('hetatm')
-    # if heteroflags is None:
-    #     heteroflags = atoms._getFlags('hetero')
-    # if heteroflags is not None:
-    #     hetero = np.array(hetero, ATOMIC_FIELDS['hetero'])
-    #     hetero[heteroflags] = 'HETATM'
+    heteroflags = atomgroup._getFlags('hetatm')
+    if heteroflags is None:
+        heteroflags = atomgroup._getFlags('hetero')
+    if heteroflags is not None:
+        hetero = np.array(hetero, ATOMIC_FIELDS['hetero'])
+        hetero[heteroflags] = 'HETATM'
 
-    elements = df['elements']
+    elements = df['element']
     # elements = np.char.rjust(elements, 2)
 
     # segments = atoms._getSegnames()
     # if segments is None:
     #     segments = np.zeros(n_atoms, ATOMIC_FIELDS['segments'])
 
-    charges = df['charges']
+    charges = df['charge']
 
     stream.write('REMARK {0}\n'.format(remark))
 
@@ -617,7 +624,7 @@ def writePDBStream(stream, atomgroup, **kwargs):
         for i, xyz in enumerate(coords):
             if i == 99999:
                 pdbline = PDBLINE_GE100K
-            write(pdbline % (hetero[i], i+1,
+            write(pdbline % (hetero[i], i + 1,
                          atomnames[i], altlocs[i],
                          resnames[i], chainids[i], resnums[i],
                          icodes[i],
@@ -635,7 +642,7 @@ def writePDB(filename, atomgroup):
     *filename*.  If *filename* ends with :file:`.gz`, a compressed file will
     be written."""
     with open(filename, 'w') as fd:
-        writePDBStream(fd)
+        writePDBStream(fd, atomgroup)
     return filename
 
 writePDB.__doc__ += _writePDBdoc + """

@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import copy
 
 PDB_COLS = [ 'name',
             'altLoc',
@@ -19,9 +20,10 @@ class AtomGroup(object):
         """
         self.name = name
         self.df = None
-        self.coords = []
-        self.trajectories = None
+        self.coords = [[]]
+        self.trajectories = []
         self.bonds = None
+        self._flags = {}
     # end def
 
     def setDataFrame(self, *args):
@@ -29,25 +31,48 @@ class AtomGroup(object):
         """
         if len(args) != len(PDB_COLS):
             raise ValueError("needs more args")
-        Series = 
         data_dict = dict(zip(PDB_COLS, args))
+        # for key, val in data_dict.items():
+        #     print(key, len(val))
         self.df = pd.DataFrame(data_dict)
     # end def
 
     def addCoordset(self, coords):
-        self.coords.appends(coords)
+        self.coords.append(coords)
     # end def
 
     def getCoordset(self, coords, index=0):
         return self.coords[index]
     # end def
 
+    def _getCoords(self):
+        return self.coords[0]
+    # end def
+
+    def setCoords(self, coords):
+        self.coords[0] = coords
+    # end def
+
     def setCoordset(self, coords, index=0):
         self.coords[index] = coords
     # end def
 
+    def getElements(self):
+        return self.df['element']
+    # end def
+
     def numCoordsets(self):
         return len(self.coords)
+    # end def
+
+    def copy(self):
+        copy_ag = AtomGroup(self.name)
+        copy_ag.df = self.df.copy()
+        copy_ag.coords = copy.deepcopy(self.coords)
+        copy_ag.trajectories = copy.deepcopy(self.trajectories)
+        copy_ag.bonds = copy.deepcopy(self.bonds)
+        copy_ag._flags = copy.deepcopy(self._flags)
+        return copy_ag
     # end def
 
     def concat(self, other):
@@ -59,7 +84,7 @@ class AtomGroup(object):
                                          repr(type(other).__name__)))
         offset = self.numAtoms()
 
-        self.df.append(other.df, ignore_index=True)
+        self.df = self.df.append(other.df, ignore_index=True)
 
         if len(self.coords) != len(other.coords):
             raise ValueError("need to have same number of coordinate sets")
@@ -75,15 +100,13 @@ class AtomGroup(object):
             # end for
         # end if
 
-        self.bonds = np.concatenate((self.bonds, other.bonds + other), axis=0)
+        if self.bonds is not None:
+            self.bonds = np.concatenate((self.bonds, other.bonds + other), axis=0)
 
     # end def
 
-    """ getters and setters based on the PDB atom format
-    """
-
     def numAtoms(self):
-        return len(self.coords)
+        return len(self.coords[0])
     # end def
 
     def frameCount(self):
@@ -124,45 +147,41 @@ class AtomGroup(object):
         return 0
     # end def
 
-    def __add__(self, other):
+    def getFlags(self, key):
+        """Return a copy of atom flags for given *key*, or **None** when
+        flags for *key* is not set."""
 
+        flags = self._getFlags(key)
+        if flags is not None:
+            return flags.copy()
 
+    def _getFlags(self, key):
+        """Return atom flag values for given *key*, or **None** when
+        flags for *key* is not set."""
+        return self._flags[key]
 
-        new = AtomGroup(self._title + ' + ' + other._title)
-        if self._n_csets:
-            if self._n_csets == other._n_csets:
-                new.setCoords(np.concatenate((self._coords, other._coords), 1))
-                if self._n_csets > 1:
-                    LOGGER.info('All {0} coordinate sets are copied to '
-                                '{1}.'.format(self._n_csets, new.getTitle()))
-            else:
-                new.setCoords(np.concatenate((self._getCoords(),
-                                              other._getCoords())))
-                LOGGER.info('Active coordinate sets are copied to {0}.'
-                            .format(new.getTitle()))
-        elif other._n_csets:
-            LOGGER.warn('No coordinate sets are copied to {0}'
-                        .format(new.getTitle()))
+    def setFlags(self, key, flags):
+        """Set atom *flags* for *key*."""
 
-        for key in set(list(self._data) + list(other._data)):
-            if key in ATOMIC_FIELDS and ATOMIC_FIELDS[key].readonly:
-                continue
-            this = self._data.get(key)
-            that = other._data.get(key)
-            if this is not None or that is not None:
-                if this is None:
-                    this = np.zeros(that.shape, that.dtype)
-                if that is None:
-                    that = np.zeros(this.shape, this.dtype)
-                new._data[key] = np.concatenate((this, that))
+        try:
+            ndim, dtype = flags.ndim, flags.dtype
+        except AttributeError:
+            flags = np.array(flags)
+            ndim, dtype = flags.ndim, flags.dtype
+        if ndim != 1:
+            raise ValueError('flags.ndim must be 1')
+        if dtype != bool:
+            raise ValueError('flags.dtype must be bool')
+        if len(flags) != self.numAtoms():
+            raise ValueError('len(flags) must be equal to number of atoms')
+        self._setFlags(key, flags)
 
-        if self._bonds is not None and other._bonds is not None:
-            new.setBonds(np.concatenate([self._bonds,
-                                         other._bonds + self._n_atoms]))
-        elif self._bonds is not None:
-            new.setBonds(self._bonds.copy())
-        elif other._bonds is not None:
-            new.setBonds(other._bonds + self._n_atoms)
+    def _setFlags(self, key, flags):
+        """Set atom flags."""
+        self._flags[key] = flags
 
-        return new
+    def delFlags(self, key):
+        """Return flags associated with *key* and remove from the instance.
+        If flags associated with *key* is not found, return **None**."""
+        return self._flags.pop(key, None)
 # end class
