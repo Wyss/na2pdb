@@ -40,6 +40,40 @@ def makeRotationZ(theta):
     m[1,1] = c
     return m
 
+def makeQuaternionMatrix(x, y, z, w):
+    n = math.sqrt(x**2 + y**2 + z**2 + w**2)
+    qx = x/n
+    qy = y/n
+    qz = z/n
+    qw = w/n
+    m = np.eye(3)
+    m[0, 0] =  1 - 2*qy**2 - 2*qz**2
+    m[0, 1] = 2*qx*qy - 2*qz*qw
+    m[0, 2] = 2*qx*qz + 2*qy*qw
+    m[1, 0] = 2*qx*qy + 2*qz*qw
+    m[1, 1] = 1 - 2*qx**2 - 2*qz**2
+    m[1, 2] = 2*qy*qz - 2*qx*qw
+    m[2, 0] = 2*qx*qz - 2*qy*qw
+    m[2, 1] = 2*qy*qz + 2*qx*qw
+    m[2, 2] = 1 - 2*qx**2 - 2*qy**2
+    return m
+# end def
+
+def applyQuaternion(coords, m3):
+    """ assume we are applying rows of vectors
+    [               
+    [x1, y1, z1],
+        ...             * m3.T 
+    [xn, yn, zn]
+    ]
+    """
+    return np.dot(coords, m3.T)
+# end def
+
+def applyGeomStack(coords, stack):
+    pass
+# end def
+
 def applyTransform(coords, m4):
     """ assume we are applying rows of vectors
     [               

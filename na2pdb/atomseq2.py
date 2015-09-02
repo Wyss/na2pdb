@@ -450,8 +450,10 @@ def createStrand(seq,
                                     bases_per_turn=bases_per_turn,
                                     theta_offset=theta_offset)
 
-    atom_sequence.transformBases(0, 8, 8, 0, 0, True)
-    atom_sequence.transformBases(8, 16, 8, 0, 0, False)
+    len_strand = len(seq)
+    half_len = len_strand // 2
+    atom_sequence.transformBases(0, half_len, half_len, 0, 0, True)
+    atom_sequence.transformBases(half_len, len_strand, half_len, 0, 0, False)
     # 1. Get base separation
     atom_sequence.linearize()
     # 2. do all rotations
@@ -490,7 +492,7 @@ if __name__ == "__main__":
     # print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
     # [[4.850,  -7.669,  0.674,  1.00]]
     createStrand("ACGTACGTACGTACGT", None)
-    # createStrand("AT", None)
+    # createStrand("ATAT", None)
 
 
 
