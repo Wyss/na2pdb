@@ -4,7 +4,14 @@
 import os.path as op
 from collections import namedtuple
 import na2pdb.matrix as matrix
-from na2pdb.cml import writeCML
+try:
+    from na2pdb.cml import writeCML
+except:
+    from cml import writeCML
+try:
+    from na2pdb.mmcif import writeMMCIF
+except:
+    from mmcif import writeMMCIF
 try:
     from na2pdb.pdbfile import parsePDB, writePDB
 except:
@@ -240,7 +247,8 @@ class AtomicSequence(object):
         for i in range(1, len(ag_list)):
             add_ag = ag_list[i].ag
             num_atoms_new = add_ag.numAtoms()
-
+            # increment the residue sequence number to prevent atom name clashes
+            add_ag.df['resSeq'] = 1 + i
             # total things
             ag_out.concat(add_ag)
 
@@ -416,6 +424,7 @@ class AtomicSequence(object):
         bonds_out = self.bonds
         writePDBConnect(filename, bonds_out)
         writeCML(filename + '.cml', self)
+        writeMMCIF(filename + '.cif', self)
     # end def
 
     def toPSF(self, filename):
