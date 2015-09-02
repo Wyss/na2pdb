@@ -1,6 +1,5 @@
 ROOT_STR = \
 """
-data_POOP
 #
 loop_
 _atom_site.group_PDB
@@ -40,6 +39,34 @@ ATOM_STR = GROUP_STR + ID_STR + AUTH_ATOM_ID_STR + \
             POSITION_STR + PDBX_PDB_MODEL_NUM_STR + OCCUPANCY_STR +\
             PDBX_AUTH_ALT_ID_STR + B_ISO_OR_EQUIV_STR + '\n'
 
+STRUCT_CONN_HEADER =\
+"""
+#
+loop_
+_struct_conn.id
+_struct_conn.conn_type_id
+_struct_conn.ptnr1_label_asym_id 
+_struct_conn.ptnr1_label_comp_id
+_struct_conn.ptnr1_label_seq_id
+_struct_conn.ptnr1_label_atom_id 
+_struct_conn.ptnr2_label_asym_id 
+_struct_conn.ptnr2_label_comp_id 
+_struct_conn.ptnr2_label_seq_id
+_struct_conn.ptnr2_label_atom_id
+"""
+BOND_STR = "%d c %s %s %d %s %s %s %d %s\n"
+
+"""
+1  c C DT 3  N3 D A 27 N1
+2  c C DT 3  O4 D A 27 N6
+3  c C DA 4  N1 D U 26 N3
+4  c C DA 4  N6 D U 26 O4
+
+http://www.cgl.ucsf.edu/chimera/data/mmcif-oct2013/mmcif.html
+mandatory columns: chain id, residue name, residue number and atom name of joined atoms
+
+"""
+
 def writeMMCIF(filename, aseq):
     bonds_out = aseq.bonds
     num_bonds = sum(len(x) for x in bonds_out) - len(bonds_out)
@@ -55,8 +82,9 @@ def writeMMCIF(filename, aseq):
             if j > maxi:
                 maxi = j
     with open(filename, 'w') as fd:
-        fd.write(ROOT_STR)
         ag = aseq.atom_group
+        fd.write("data_%s" % ag.name)
+        fd.write(ROOT_STR)
         coords = ag._getCoords()
         elements = ag.getElements()
         resnames = ag.df['resName']
@@ -76,12 +104,23 @@ def writeMMCIF(filename, aseq):
             fd.write(ATOM_STR % (i+1, name, element, resname, cid, seqid, 
                                 x, y, z, model_num, occupancies[i], 
                                 '.', temp_factors[i]))
-        # fd.write(" <bondArray>\n")
-        # bond_str = "<bond atomRefs2=\"a%d a%d\" order=\"1\"/>"
-        # for bond in bonds:
-        #     fd.write(bond_str % (bond[0], bond[1]))
-        # fd.write(" </bondArray>\n")
-        # fd.write("</molecule>\n")
+        fd.write(STRUCT_CONN_HEADER)
+        for i, bond in enumerate(bonds):
+            b0, b1 = bond
+            b0 -= 1
+            b1 -= 1
+            chainid0 = chainids[b0]
+            rn0 = resnames[b0]
+            seqid0 = seqids[b0]
+            name0 = names[b0]
+
+            chainid1 = chainids[b1]
+            rn1 = resnames[b1]
+            seqid1 = seqids[b1]
+            name1 = names[b1]
+
+            fd.write(BOND_STR % (i, chainid0, rn0, seqid0, name0, chainid1, rn1, seqid1, name1))
+        # end for
 # end def
 
 # ATOM       1  N    N  GLN  A   39   24.690  -27.754   24.275  1  1.000  .  60.760
