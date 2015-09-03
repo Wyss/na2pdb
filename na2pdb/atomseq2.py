@@ -299,6 +299,10 @@ class AtomicSequence(object):
         # don't bother with self.start_idxs, self.twists, etc for now
     # end def
 
+    def setChainID(self, new_id):
+        self.atom_group.df['chainID'] = new_id
+    # end def
+
     def transformBases(self, start, end, x, y, z, is_5to3):
         """
         assumes start < end

@@ -2,6 +2,7 @@
 when you want multipe molecules in a file, increase the chainID
 in PDB file parlance
 or rather the label_asym_id for mmCIF files
+PDBs use a single character but 
 """
 import pandas as pd
 import numpy as np
@@ -64,6 +65,14 @@ class AtomGroup(object):
 
     def getElements(self):
         return self.df['element']
+    # end def
+
+    def getTitle(self):
+        return self.name
+    # end def
+
+    def setTitle(self, name):
+        self.name = name
     # end def
 
     def numCoordsets(self):
