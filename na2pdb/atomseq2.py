@@ -1,26 +1,21 @@
-
-# from prody.proteins import parsePDB, writePDB
-# from prody.trajectory import writePSF
 import os.path as op
 from collections import namedtuple
-import na2pdb.matrix as matrix
 try:
+    import na2pdb.matrix as matrix
     from na2pdb.cml import writeCML
-except:
-    from cml import writeCML
-try:
     from na2pdb.mmcif import writeMMCIF
-except:
-    from mmcif import writeMMCIF
-try:
     from na2pdb.pdbfile import parsePDB, writePDB
+    from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
 except:
+    import matrix
+    from cml import writeCML
+    from mmcif import writeMMCIF
     from pdbfile import parsePDB, writePDB
+    from parsebonds import parsePDBConnect, writePDBConnect
 import math
 import numpy as np
-from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
-# from prody import LOGGER
-# LOGGER.verbosity = 'none'
+
+
 """
 # strands axii assumed in the X direction
 
@@ -444,7 +439,7 @@ class AtomicSequence(object):
                     maxi = j
         print(ag_out.numAtoms(), maxi)
         ag_out.setBonds(bonds)
-        # writePSF(filename, ag_out)
+        writePSF(filename, ag_out)
 # end class
 
 

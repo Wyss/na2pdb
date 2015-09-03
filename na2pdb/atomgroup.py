@@ -1,3 +1,8 @@
+"""
+when you want multipe molecules in a file, increase the chainID
+in PDB file parlance
+or rather the label_asym_id for mmCIF files
+"""
 import pandas as pd
 import numpy as np
 import copy

@@ -1,14 +1,23 @@
+"""
+This is based upon requirements for successfully parsing
+mmCIF files in Chimera and that the struct_conn_type_id 
+for covalent bonds is `covale` as per:
+ 
+http://mmcif.wwpdb.org/dictionaries/mmcif_pdbx_v40.dic/Items/_struct_conn_type.id.html
+
+and not just a `c`
+"""
 ROOT_STR = \
 """
 #
 loop_
 _atom_site.group_PDB
 _atom_site.id
-_atom_site.auth_atom_id
+_atom_site.label_atom_id
 _atom_site.type_symbol
-_atom_site.auth_comp_id
-_atom_site.auth_asym_id
-_atom_site.auth_seq_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
 _atom_site.Cartn_x
 _atom_site.Cartn_y
 _atom_site.Cartn_z
@@ -54,7 +63,7 @@ _struct_conn.ptnr2_label_comp_id
 _struct_conn.ptnr2_label_seq_id
 _struct_conn.ptnr2_label_atom_id
 """
-BOND_STR = "%d c %s %s %d %s %s %s %d %s\n"
+BOND_STR = "%d covale %s %s %d %s %s %s %d %s\n"
 
 """
 1  c C DT 3  N3 D A 27 N1
@@ -67,22 +76,23 @@ mandatory columns: chain id, residue name, residue number and atom name of joine
 
 """
 
-def writeMMCIF(filename, aseq):
-    bonds_out = aseq.bonds
-    num_bonds = sum(len(x) for x in bonds_out) - len(bonds_out)
+def writeMMCIF(filename, atomic_sequence):
+    bonds_out = atomic_sequence.bonds
+    num_connected_atoms = len(bonds_out)
+    num_bonds = sum(len(x) for x in bonds_out) - num_connected_atoms
     bonds = []
     maxi = 0
     for item in bonds_out:
         i = item[0]
         for j in item[1:]:
             if i < j: # so we don't double count
-                bonds.append((i,j))
+                bonds.append((i-1,j-1))
             if i > maxi:
                 maxi = i
             if j > maxi:
                 maxi = j
     with open(filename, 'w') as fd:
-        ag = aseq.atom_group
+        ag = atomic_sequence.atom_group
         fd.write("data_%s" % ag.name)
         fd.write(ROOT_STR)
         coords = ag._getCoords()
@@ -107,8 +117,6 @@ def writeMMCIF(filename, aseq):
         fd.write(STRUCT_CONN_HEADER)
         for i, bond in enumerate(bonds):
             b0, b1 = bond
-            b0 -= 1
-            b1 -= 1
             chainid0 = chainids[b0]
             rn0 = resnames[b0]
             seqid0 = seqids[b0]
@@ -119,7 +127,7 @@ def writeMMCIF(filename, aseq):
             seqid1 = seqids[b1]
             name1 = names[b1]
 
-            fd.write(BOND_STR % (i, chainid0, rn0, seqid0, name0, chainid1, rn1, seqid1, name1))
+            fd.write(BOND_STR % (i+1, chainid0, rn0, seqid0, name0, chainid1, rn1, seqid1, name1))
         # end for
 # end def
 
