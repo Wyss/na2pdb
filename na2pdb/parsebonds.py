@@ -25,10 +25,12 @@ def writePDBConnect(fn, bonds):
     ProDy doesn't write an end
     """
     with open(fn, "a") as fd:
+        hex_str = "%5x"
+        dec_str = "%5d"
         for bonds_per_atom in bonds:
             num_bonds = len(bonds_per_atom)
             outstring = "CONECT"
-            outstring += ''.join(["%5d" for x in range(num_bonds)])
+            outstring += ''.join([hex_str if x > 99999 else dec_str for x in bonds_per_atom])
             outstring += '\n'
             fd.write(outstring % tuple(bonds_per_atom))
         num_atoms = len(bonds)

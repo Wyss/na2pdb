@@ -239,6 +239,15 @@ class AtomicSequence(object):
         offset = ag_out.numAtoms()
         num_atoms_last = 0
 
+
+        """
+        install phosphate bond by 
+        1. dropping the last Atom of the 5' side and
+        2. the -OH atoms of the of the 3' side. 
+        3. drop the last bond of the 5' side (the HCAP to the O) (base_bonds[i][-1])
+        4. for the 3' side, replace the base_bonds[i+1][1] of the 3' 
+            base_bonds[i+1][2][1] = offset = 
+        """
         for i in range(1, len(ag_list)):
             add_ag = ag_list[i].ag
             num_atoms_new = add_ag.numAtoms()
@@ -254,6 +263,7 @@ class AtomicSequence(object):
             else:
                 offset1, offset2 = O3_ID_OFFSET, O3_IDX_OFFSET
 
+            # append covalent bonds linking the bases
             # Create Phosphate Bond 3' to 5'
             base_from = start_idxs[i - 1] + offset1
             bond_list_offset[0][1] = base_from
@@ -267,20 +277,14 @@ class AtomicSequence(object):
             num_atoms_last = num_atoms_new
         # end for
 
-        """
-        install phosphate bond by 
-        1. dropping the last Atom of the 5' side and
-        2. the -OH atoms of the of the 3' side. 
-        3. drop the last bond of the 5' side (the HCAP to the O) (base_bonds[i][-1])
-        4. for the 3' side, replace the base_bonds[i+1][1] of the 3' 
-            base_bonds[i+1][2][1] = offset = 
-        """
         ag_out.name = name
         self.atom_group = ag_out
         self.bonds = bonds_out
     # end def
 
     def concat(self, other):
+        """
+        """
         if not isinstance(other, AtomicSequence ):
             raise TypeError('unsupported operand type(s) for +: {0} and '
                             '{1}'.format(repr(type(self).__name__),
@@ -422,8 +426,12 @@ class AtomicSequence(object):
         writePDB(filename, ag_out)
         bonds_out = self.bonds
         writePDBConnect(filename, bonds_out)
-        writeCML(filename + '.cml', self)
-        writeMMCIF(filename + '.cif', self)
+        # writeCML(filename + '.cml', self)
+        # writeMMCIF(filename + '.cif', self)
+    # end def
+
+    def toMMCIF(self, filename):
+        writeMMCIF(filename, self)
     # end def
 
     def toPSF(self, filename):

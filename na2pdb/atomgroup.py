@@ -115,7 +115,13 @@ class AtomGroup(object):
         # end if
 
         if self.bonds is not None:
-            self.bonds = np.concatenate((self.bonds, other.bonds + other), axis=0)
+            """
+            don't assume AtomGroups are bonded in a particalar way
+            """
+            # new_other = np.concatenate(np.array([offset, offset+1], int),
+            #                                         other.bonds + other, axis=0)
+            new_other = other.bonds + other
+            self.bonds = np.concatenate((self.bonds, new_other), axis=0)
 
     # end def
 
