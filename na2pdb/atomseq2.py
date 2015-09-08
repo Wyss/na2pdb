@@ -69,7 +69,8 @@ M_Y_OFF = matrix.makeTranslation(0, PRETWIST_Y_OFFSET, 0)
 
 RADIUS = 10.175   # Approximate radius of each base in Angstroms, unused
 
-THETA_REV_OFFSET = 0.18159025402704151
+# THETA_REV_OFFSET = 0.18159025402704151
+THETA_REV_OFFSET = 0.07476
 
 BASE_LUT = np.zeros(128, dtype=int)
 BASE_LUT[b'A'[0]] = 0
@@ -483,6 +484,41 @@ def createStrand(seq,
     atom_sequence.applyTransformQueue()
 
     out_file = 'test_file.pdb'
+    atom_sequence.toPDB(out_file)
+
+
+    atom_sequence = AtomicSequence(seq, name=name, 
+                                    bases_per_turn=bases_per_turn,
+                                    theta_offset=theta_offset)
+
+    len_strand = len(seq)
+    half_len = len_strand // 2
+    atom_sequence.transformBases(0, len_strand, 0, 1.5, 0, False)
+    # 1. Get base separation
+    atom_sequence.linearize()
+    # 2. do all rotations
+    atom_sequence.applyReverseQueue()
+    atom_sequence.applyTwist()
+    # 3. move to position
+    atom_sequence.applyTransformQueue()
+    out_file = 'test_file2.pdb'
+    atom_sequence.toPDB(out_file)
+
+    atom_sequence = AtomicSequence(seq, name=name, 
+                                bases_per_turn=bases_per_turn,
+                                theta_offset=theta_offset)
+
+    len_strand = len(seq)
+    half_len = len_strand // 2
+    atom_sequence.transformBases(0, len_strand, 0, 1.5, 0, True)
+    # 1. Get base separation
+    atom_sequence.linearize()
+    # 2. do all rotations
+    atom_sequence.applyReverseQueue()
+    atom_sequence.applyTwist()
+    # 3. move to position
+    atom_sequence.applyTransformQueue()
+    out_file = 'test_file3.pdb'
     atom_sequence.toPDB(out_file)
 
     if create_psf:
