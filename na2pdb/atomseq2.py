@@ -322,14 +322,18 @@ class AtomicSequence(object):
         twist_per_segment = 2.*math.pi/self.bases_per_turn
         theta0 = self.theta_offset
 
-        start_idx = self.start_idxs[start]
+        try:
+            start_idx = start_idxs[start]
+        except:
+            print("start idx problem:", len(start_idxs), start)
+            raise
         if end == -1 or end > len(self.seq) - 1:
             # print("doop", end)
             end_idx = len(old_coords)
         else:
             # print("goop", end)
-            end_idx = self.start_idxs[end]
-            
+            end_idx = start_idxs[end]
+
         if not is_5to3:
             # 1. Flip 180 degrees about Z to change direction
             m_rev = matrix.makeRotationZ(math.pi)
