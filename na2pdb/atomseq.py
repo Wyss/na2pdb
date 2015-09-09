@@ -1,15 +1,23 @@
-
-from prody.proteins import parsePDB, writePDB
-from prody.trajectory import writePSF
 import os.path as op
 from collections import namedtuple
-import na2pdb.matrix as matrix
-from na2pdb.cml import writeCML 
+try:
+    import na2pdb.matrix as matrix
+    from na2pdb.cml import writeCML
+    from na2pdb.mmcif import writeMMCIF
+    from na2pdb.psffile import writePSF
+    from na2pdb.pdbfile import parsePDB, writePDB
+    from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
+except:
+    import matrix
+    from cml import writeCML
+    from mmcif import writeMMCIF
+    from psffile import writePSF
+    from pdbfile import parsePDB, writePDB
+    from parsebonds import parsePDBConnect, writePDBConnect
 import math
 import numpy as np
-from na2pdb.parsebonds import parsePDBConnect, writePDBConnect
-from prody import LOGGER
-LOGGER.verbosity = 'none'
+
+
 """
 # strands axii assumed in the X direction
 
@@ -26,7 +34,7 @@ LOGGER.verbosity = 'none'
 dna_pdb_files = [   'A_single.pdb',
                     'C_single.pdb', 
                     'G_single.pdb', 
-                    'T_single2.pdb'
+                    'T_single.pdb'
                 ]
 LOCAL_DIR = op.dirname(op.abspath(__file__))
 DATA_DIR = op.join(LOCAL_DIR, 'data')
@@ -58,12 +66,10 @@ AGBase = namedtuple('AGBase', ['idx', 'ag'])
 DELTA_X = 3.38      # distance in Angstroms between bases
 DELTA_X_REV_OFFSET = 0.78 # unclear, but required
 
-PRETWIST_Y_OFFSET = 2.29005198e-03 # for reverse strands NOT SURE how to use this
-M_Y_OFF = matrix.makeTranslation(0, PRETWIST_Y_OFFSET, 0)
-
 RADIUS = 10.175   # Approximate radius of each base in Angstroms, unused
 
-THETA_REV_OFFSET = 0.18159025402704151
+# THETA_REV_OFFSET = 0.18159025402704151
+THETA_REV_OFFSET = 0.07476
 
 BASE_LUT = np.zeros(128, dtype=int)
 BASE_LUT[b'A'[0]] = 0
@@ -74,11 +80,6 @@ BASE_LUT[b'a'[0]] = 0
 BASE_LUT[b'c'[0]] = 1
 BASE_LUT[b'g'[0]] = 2
 BASE_LUT[b't'[0]] = 3
-
-ROT = np.array([[ -1.0, -2.22044605e-16, -2.22044605e-16, 4.16],
-                [ -6.17095915e-03, -9.83378029e-01, -1.82110602e-01, 1.89824119e-03],
-                [  1.41609991e-04, -1.80761798e-01, 9.83150573e-01, 1.58762083e-03],
-                [  0.0,   0.0,  5.55111512e-17,   1.0]])
 
 def loadBasePDBs():
     base_atom_groups = []
@@ -102,16 +103,12 @@ def create5PrimeAGs(base_atom_groups, base_bonds):
     bonds = []
     for i, ag in enumerate(base_atom_groups):
         ag_copy = ag.copy()
-        ag_copy._n_atoms = ag_copy._n_atoms - 1
 
-        new_data = {}
+        # ag_copy._n_atoms = ag_copy.numAtoms() - 1
+
         end_idx = ID_OFFSETS[i][1]
 
-        for key, val in ag_copy._data.items():
-            # print(key, len(val[:end_idx]), ag_copy._n_atoms)
-            new_data[key] = val[:end_idx]
-        
-        ag_copy._data = new_data
+        ag_copy.df = ag_copy.df[:end_idx].reset_index(drop=True)
         new_coords = ag_copy._getCoords()[:end_idx]
         ag_copy._coords = None
         ag_copy.setCoords(new_coords)
@@ -129,18 +126,13 @@ def create3PrimeAGs(base_atom_groups, base_bonds):
     bonds = []
     for i, ag in enumerate(base_atom_groups):
         ag_copy = ag.copy()
-        ag_copy._n_atoms = ag_copy._n_atoms - 2
 
-        new_data = {}
+        # ag_copy._n_atoms = ag_copy.numAtoms() - 2
+
         start_idx = IDX_OFFSETS[i][0]
-        
-        for key, val in ag_copy._data.items():
-            if key == 'serial': # offset the serial
-                new_data[key] = val[start_idx:] - 2
-            else:
-                new_data[key] = val[start_idx:]
-        ag_copy._data = new_data
 
+        ag_copy.df = ag_copy.df[start_idx:].reset_index(drop=True)
+        
         new_coords = ag_copy._getCoords()[start_idx:]
         ag_copy._coords = None
         ag_copy.setCoords(new_coords)
@@ -159,17 +151,12 @@ def createINTAGs(base_atom_groups, base_bonds):
     bonds = []
     for i, ag in enumerate(base_atom_groups):
         ag_copy = ag.copy()
-        ag_copy._n_atoms = ag_copy._n_atoms - 3
+        # ag_copy._n_atoms = ag_copy.numAtoms() - 3
 
-        new_data = {}
         start_idx = IDX_OFFSETS[i][0]
         end_idx = ID_OFFSETS[i][1]
-        for key, val in ag_copy._data.items():
-            if key == 'serial': # offset the serial
-                new_data[key] = val[start_idx:end_idx] - 2
-            else:
-                new_data[key] = val[start_idx:end_idx]
-        ag_copy._data = new_data
+
+        ag_copy.df = ag_copy.df[start_idx:end_idx].reset_index(drop=True)
 
         new_coords = ag_copy._getCoords()[start_idx:end_idx]
         ag_copy._coords = None
@@ -247,12 +234,22 @@ class AtomicSequence(object):
         offset = ag_out.numAtoms()
         num_atoms_last = 0
 
+
+        """
+        install phosphate bond by 
+        1. dropping the last Atom of the 5' side and
+        2. the -OH atoms of the of the 3' side. 
+        3. drop the last bond of the 5' side (the HCAP to the O) (base_bonds[i][-1])
+        4. for the 3' side, replace the base_bonds[i+1][1] of the 3' 
+            base_bonds[i+1][2][1] = offset = 
+        """
         for i in range(1, len(ag_list)):
             add_ag = ag_list[i].ag
             num_atoms_new = add_ag.numAtoms()
-
+            # increment the residue sequence number to prevent atom name clashes
+            add_ag.df['resSeq'] = 1 + i
             # total things
-            ag_out += add_ag
+            ag_out.concat(add_ag)
 
             bond_list_offset = [x + offset for x in bond_list[i]]
             # different offset for connecting to the 5' end base
@@ -261,6 +258,7 @@ class AtomicSequence(object):
             else:
                 offset1, offset2 = O3_ID_OFFSET, O3_IDX_OFFSET
 
+            # append covalent bonds linking the bases
             # Create Phosphate Bond 3' to 5'
             base_from = start_idxs[i - 1] + offset1
             bond_list_offset[0][1] = base_from
@@ -274,20 +272,14 @@ class AtomicSequence(object):
             num_atoms_last = num_atoms_new
         # end for
 
-        """
-        install phosphate bond by 
-        1. dropping the last Atom of the 5' side and
-        2. the -OH atoms of the of the 3' side. 
-        3. drop the last bond of the 5' side (the HCAP to the O) (base_bonds[i][-1])
-        4. for the 3' side, replace the base_bonds[i+1][1] of the 3' 
-            base_bonds[i+1][2][1] = offset = 
-        """
-        ag_out.setTitle(name)
+        ag_out.name = name
         self.atom_group = ag_out
         self.bonds = bonds_out
     # end def
 
     def concat(self, other):
+        """
+        """
         if not isinstance(other, AtomicSequence ):
             raise TypeError('unsupported operand type(s) for +: {0} and '
                             '{1}'.format(repr(type(self).__name__),
@@ -300,10 +292,14 @@ class AtomicSequence(object):
         for i in range(len(other.bonds)):
             obonds[i] += atom_offset    # add scalar to array
         # add atom groups
-        self.atom_group += other.atom_group
+        self.atom_group.concat(other.atom_group)
         self.atom_group.setTitle(name)
         self.bonds += other.bonds
         # don't bother with self.start_idxs, self.twists, etc for now
+    # end def
+
+    def setChainID(self, new_id):
+        self.atom_group.df['chainID'] = new_id
     # end def
 
     def transformBases(self, start, end, x, y, z, is_5to3):
@@ -321,19 +317,22 @@ class AtomicSequence(object):
         twist_per_segment = 2.*math.pi/self.bases_per_turn
         theta0 = self.theta_offset
 
-        start_idx = self.start_idxs[start]
+        try:
+            start_idx = start_idxs[start]
+        except:
+            print("start idx problem:", len(start_idxs), start)
+            raise
         if end == -1 or end > len(self.seq) - 1:
             # print("doop", end)
             end_idx = len(old_coords)
         else:
             # print("goop", end)
-            end_idx = self.start_idxs[end]
-            
+            end_idx = start_idxs[end]
+
         if not is_5to3:
             # 1. Flip 180 degrees about Z to change direction
             m_rev = matrix.makeRotationZ(math.pi)
             self.reverse_queue.append((m_rev, start_idx, end_idx))
-            # self.reverse_queue.append((M_Y_OFF, start_idx, end_idx))  
 
             # 2. Translate as required
             # print("translating", x + end - start )
@@ -342,7 +341,7 @@ class AtomicSequence(object):
                                         z*RADIUS)
             if x + end - start - 1 < 1:
                 print("tb", len(self.twists), x, end, start, x + end - start - 1)
-                raise ValueError("poop")
+                raise ValueError("transformBases: issue with start and end")
             self.twists[start:end] = [(q*twist_per_segment + theta0 + THETA_REV_OFFSET)\
                                          for q in range(x + end - start - 1, x - 1, -1)]
         else:
@@ -353,8 +352,6 @@ class AtomicSequence(object):
                                 for q in range(x, x + end - start)]
 
         self.base_idxs[start:end] = list(range(0, end - start))
-
-        # print(self.base_idxs)
 
         self.transform_queue.append((m, start_idx, end_idx))
     # end def
@@ -425,31 +422,24 @@ class AtomicSequence(object):
         writePDB(filename, ag_out)
         bonds_out = self.bonds
         writePDBConnect(filename, bonds_out)
-        writeCML(filename + '.cml', self)
+        # writeCML(filename + '.cml', self)
+        # writeMMCIF(filename + '.cif', self)
+    # end def
+
+    def toMMCIF(self, filename):
+        writeMMCIF(filename, self)
     # end def
 
     def toPSF(self, filename):
-        ag_out = self.atom_group
-        bonds_out = self.bonds
-        num_bonds = sum(len(x) for x in bonds_out) - len(bonds_out)
-        bonds = []
-        maxi = 0
-        for item in bonds_out:
-            i = item[0]
-            for j in item[1:]:
-                if i < j: # so we don't double count
-                    bonds.append((i-1,j-1))
-                if i > maxi:
-                    maxi = i
-                if j > maxi:
-                    maxi = j
-        print(ag_out.numAtoms(), maxi)
-        ag_out.setBonds(bonds)
-        writePSF(filename, ag_out)
+        """
+        convert list of bonds by atom to 
+        list of bond pairs, still indexing from 1
+        """
+        writePSF(filename, self)
 # end class
 
 
-def createStrand(seq, 
+def testCreateStrand(seq, 
                 name="strand", 
                 bases_per_turn=10.5,
                 theta_offset=0.0,
@@ -460,8 +450,10 @@ def createStrand(seq,
                                     bases_per_turn=bases_per_turn,
                                     theta_offset=theta_offset)
 
-    atom_sequence.transformBases(0, 8, 8, 0, 0, True)
-    atom_sequence.transformBases(8, 16, 8, 0, 0, False)
+    len_strand = len(seq)
+    half_len = len_strand // 2
+    atom_sequence.transformBases(0, half_len, half_len, 0, 0, True)
+    atom_sequence.transformBases(half_len, len_strand, half_len, 0, 0, False)
     # 1. Get base separation
     atom_sequence.linearize()
     # 2. do all rotations
@@ -473,13 +465,48 @@ def createStrand(seq,
     out_file = 'test_file.pdb'
     atom_sequence.toPDB(out_file)
 
+
+    atom_sequence = AtomicSequence(seq, name=name, 
+                                    bases_per_turn=bases_per_turn,
+                                    theta_offset=theta_offset)
+
+    len_strand = len(seq)
+    half_len = len_strand // 2
+    atom_sequence.transformBases(0, len_strand, 0, 1.5, 0, False)
+    # 1. Get base separation
+    atom_sequence.linearize()
+    # 2. do all rotations
+    atom_sequence.applyReverseQueue()
+    atom_sequence.applyTwist()
+    # 3. move to position
+    atom_sequence.applyTransformQueue()
+    out_file = 'test_file2.pdb'
+    atom_sequence.toPDB(out_file)
+
+    atom_sequence = AtomicSequence(seq, name=name, 
+                                bases_per_turn=bases_per_turn,
+                                theta_offset=theta_offset)
+
+    len_strand = len(seq)
+    half_len = len_strand // 2
+    atom_sequence.transformBases(0, len_strand, 0, 1.5, 0, True)
+    # 1. Get base separation
+    atom_sequence.linearize()
+    # 2. do all rotations
+    atom_sequence.applyReverseQueue()
+    atom_sequence.applyTwist()
+    # 3. move to position
+    atom_sequence.applyTransformQueue()
+    out_file = 'test_file3.pdb'
+    atom_sequence.toPDB(out_file)
+
     if create_psf:
         atom_sequence.toPSF('test_file.psf')
     return atom_sequence.atom_group
 # end def
 
 if __name__ == "__main__":
-    # createStrand("ACGTACGTACG", None, create_psf=True)
+    # testCreateStrand("ACGTACGTACG", None, create_psf=True)
     # a = R*b
     a = np.eye(4)
     a[:,0] = 4.16, -8.76, -1.609, 1    # P phosphate
@@ -499,8 +526,8 @@ if __name__ == "__main__":
 
     # print(np.dot(R, np.array([[-0.690, 7.424, 2.047, 1.00]]).T))
     # [[4.850,  -7.669,  0.674,  1.00]]
-    createStrand("ACGTACGTACGTACGT", None)
-    # createStrand("AT", None)
+    testCreateStrand("ACGTACGTACGTACGT", None)
+    # testCreateStrand("ATAT", None)
 
 
 
