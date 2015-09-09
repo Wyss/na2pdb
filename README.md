@@ -1,10 +1,13 @@
 # na2pdb
 Convert DNA sequencesto PDB files and spatially wrangle them.  
 Useful for simulation input data.
-Conceived to be the base of a [cadnano 2.5](https://github.com/cadnano/cadnano2.5) 
-*.nno converter, which should show up in that repo soon.
+Conceived to be the basis of a [cadnano 2.5](https://github.com/cadnano/cadnano2.5) 
+*.json converter, which is now in that repo as `createPDB.py`.
 
-dependencies: [ProDy](http://prody.csb.pitt.edu/index.html), numpy
+The core data structure is a stripped down version of [ProDy](http://prody.csb.pitt.edu/index.html)'s
+`AtomGroup` class
+
+dependencies: numpy
 
 Should be Python 2/3 compatible
 
