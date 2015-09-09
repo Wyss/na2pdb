@@ -56,13 +56,13 @@ def writePSF(filename, atomseq):
         write('PSF{0}\n'.format( ' NAMD' if long_fields else ''))
         write('\n')
         write('{0:8d} !NTITLE\n'.format(1))
-        write(' REMARKS {0}\n'.format(str(atoms)))
+        write(' REMARKS {0}\n'.format(atomgroup.name))
         write('\n')
         write('{0:8d} !NATOM\n'.format(n_atoms))
 
         for i in range(n_atoms):
             write(PSFLINE % (i + 1, segments[i], resnums[i],
-                            rnames[i], atomnames[i], atomtypes[i], 
+                            resnames[i], atomnames[i], atomtypes[i], 
                             charges[i], masses[i], 0) )
         
         write('\n')
