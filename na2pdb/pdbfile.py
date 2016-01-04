@@ -12,7 +12,7 @@ import os.path
 
 import numpy as np
 STR_DTYPE = np.array(['a']).dtype.char  # 'S' for PY2K and 'U' for PY3K
-ATOMIC_FIELDS = {    
+ATOMIC_FIELDS = {
     'name':     STR_DTYPE + '6',
     'altloc':   STR_DTYPE + '1',
     'anisou':   float,
@@ -32,7 +32,7 @@ ATOMIC_FIELDS = {
     'mass':     float,
     'radius':   float,
     'resindex': int,
-    'chindex':  int, 
+    'chindex':  int,
     'segindex': int,
     'fragindex':int,
     'numbonds': int,
@@ -140,7 +140,7 @@ def _parsePDBLines(atomgroup, lines, model, altloc_torf):
     onlycoords = False
     n_atoms = atomgroup.numAtoms()
     if n_atoms > 0:
-        print("FARTS", n_atoms)
+        print("Number of atoms set", n_atoms)
         asize = n_atoms
     else:
         # most PDB files contain less than 99999 atoms
@@ -383,7 +383,7 @@ def _parsePDBLines(atomgroup, lines, model, altloc_torf):
                     siguij.resize((acount, 6))
                     atomgroup.setAnistds(siguij / 10000)
 
-                atomgroup.setDataFrame(atomnames, altlocs, resnames, 
+                atomgroup.setDataFrame(atomnames, altlocs, resnames,
                                         chainids, resnums, np.char.strip(icodes),
                                         occupancies, bfactors, np.char.strip(elements),
                                         np.char.strip(charges))
@@ -396,7 +396,7 @@ def _parsePDBLines(atomgroup, lines, model, altloc_torf):
                     _evalAltlocs(atomgroup, altloc, chainids, resnums,
                                  resnames, atomnames)
                     altloc = defaultdict(list)
-                
+
                 if END:
                     break
         elif startswith == 'ANISOU':
@@ -454,12 +454,12 @@ def _parsePDBLines(atomgroup, lines, model, altloc_torf):
         resnames.resize(acount)
         resnums.resize(acount)
         chainids.resize(acount)
-        
+
         hetero.resize(acount)
         termini.resize(acount)
         atomgroup.setFlags('hetatm', hetero)
         atomgroup.setFlags('pdbter', termini)
-        
+
         altlocs.resize(acount)
         icodes.resize(acount)
         serials.resize(acount)
@@ -480,7 +480,7 @@ def _parsePDBLines(atomgroup, lines, model, altloc_torf):
         elements.resize(acount)
         charges.resize(acount)
 
-        atomgroup.setDataFrame(atomnames, altlocs, resnames, 
+        atomgroup.setDataFrame(atomnames, altlocs, resnames,
                         chainids, resnums, np.char.strip(icodes),
                         occupancies, bfactors, np.char.strip(elements),
                         np.char.strip(charges))
@@ -581,7 +581,7 @@ def writePDBStream(stream, atomgroup, **kwargs):
     occupancies = df['occupancy']
     bfactors = df['tempFactor']
     atomnames = df['name'].copy()
-    
+
     for i, an in enumerate(atomnames):
         if len(an) < 4:
             atomnames[i] = ' ' + an
